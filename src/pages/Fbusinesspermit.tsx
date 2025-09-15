@@ -21,6 +21,41 @@ export default function Fbrgyclearance() {
     issuedOn: "",
   });
 
+  const handleSubmit = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/businesspermit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert("Business Permit form submitted successfully!");
+        setFormData({
+          LastName: "",
+          FirstName: "",
+          MiddleName: "",
+          Address: "",
+          Age: "",
+          Birthdate: "",
+          ContactNumber: "",
+          Gender: "",
+          BusinessName: "",
+          BusinessAddress: "",
+          Owner: "",
+          BusinessNature: "",
+          Classification: "",
+          issuedOn: "",
+        });
+      } else {
+        alert(data.message || "Error submitting form");
+      }
+    } catch (error) {
+      alert("Network error. Please try again.");
+      console.error(error);
+    }
+  };
+
   const handleBack = () => {
     navigate("/issuance");
   };
@@ -47,7 +82,7 @@ export default function Fbrgyclearance() {
   return (
     <div className="p-6 bg-black min-h-screen text-white">
       <div className="bg-gray-900 p-6 rounded-2xl shadow-lg max-w-3xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Barangay Clearance Form</h1>
+        <h1 className="text-3xl font-bold mb-6">Business Permit Form</h1>
 
         {/* Personal Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -216,9 +251,9 @@ export default function Fbrgyclearance() {
           <button onClick={handleBack} className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-500">
             Back
           </button>
-          <button className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500">
-            Fill-Out Done
-          </button>
+            <button onClick={handleSubmit} className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500">
+              Fill-Out Done
+            </button>
         </div>
       </div>
     </div>

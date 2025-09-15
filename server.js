@@ -1,25 +1,3 @@
-// API endpoint to get recent issuances
-app.get("/api/recent-issuance", (req, res) => {
-  // Example: Get the 5 most recent issuances from all tables
-  const queries = [
-    `SELECT 'Business Permit' AS type, issued_on AS date_issued FROM business_permit ORDER BY issued_on DESC LIMIT 5`,
-    `SELECT 'Certificate of Indigency' AS type, IssuedOn AS date_issued FROM certificate_of_indigency ORDER BY IssuedOn DESC LIMIT 5`,
-    `SELECT 'Barangay Clearance' AS type, IssuedOn AS date_issued FROM barangay_clearance ORDER BY IssuedOn DESC LIMIT 5`
-  ];
-  Promise.all(queries.map(q => new Promise((resolve, reject) => {
-    db.query(q, (err, results) => {
-      if (err) reject(err);
-      else resolve(results);
-    });
-  }))).then(allResults => {
-    // Flatten and sort by date_issued descending
-    const merged = [].concat(...allResults).sort((a, b) => new Date(b.date_issued) - new Date(a.date_issued));
-    res.json({ recent: merged.slice(0, 5) });
-  }).catch(err => {
-    console.error("Recent issuance error:", err);
-    res.status(500).json({ message: "Database error: " + (err.sqlMessage || err.message || err) });
-  });
-});
 // server.js
 import express from "express";
 import mysql from "mysql2";
@@ -99,6 +77,27 @@ app.post("/api/indigency", (req, res) => {
     [LastName, FirstName, MiddleName, Address, Age, Birthdate, ContactNumber, Gender, Purpose, issuedOn],
     (err, result) => {
       if (err) {
+    app.get("/api/recent-issuance", (req, res) => {
+      // Example: get the 10 most recent issuances from all tables
+      const queries = [
+        "SELECT 'indigency' AS type, LastName, FirstName, MiddleName, Address, Purpose, IssuedOn FROM certificate_of_indigency ORDER BY IssuedOn DESC LIMIT 10",
+        "SELECT 'clearance' AS type, LastName, FirstName, MiddleName, Address, Purpose, IssuedOn FROM barangay_clearance ORDER BY IssuedOn DESC LIMIT 10",
+        "SELECT 'businesspermit' AS type, last_name AS LastName, first_name AS FirstName, middle_name AS MiddleName, address AS Address, business_nature AS Purpose, issued_on AS IssuedOn FROM business_permit ORDER BY issued_on DESC LIMIT 10"
+      ];
+      Promise.all(queries.map(q => new Promise((resolve, reject) => {
+        db.query(q, (err, results) => {
+          if (err) return reject(err);
+          resolve(results);
+        });
+      }))).then(([indigency, clearance, businesspermit]) => {
+        // Combine and sort by IssuedOn descending
+        const all = [...indigency, ...clearance, ...businesspermit].sort((a, b) => new Date(b.IssuedOn) - new Date(a.IssuedOn));
+        res.json({ recent: all.slice(0, 10) });
+      }).catch(err => {
+        console.error("Recent issuance error:", err);
+        res.status(500).json({ message: "Database error" });
+      });
+    });
         console.error("Insert error:", err);
         return res.status(500).json({ message: "Database error" });
       }
