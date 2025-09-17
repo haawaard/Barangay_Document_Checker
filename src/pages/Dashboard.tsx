@@ -1,8 +1,28 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import Layout from "./Layout";
 
 const Dashboard: React.FC = () => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const dateStr = now.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
   return (
     <Layout>
       {/* Header */}
@@ -12,26 +32,26 @@ const Dashboard: React.FC = () => {
           <a href="#" className="text-blue-400">Home</a>
           <a href="#" className="hover:text-white">Contact</a>
         </nav>
-        <span className="text-sm">August 10, 2025</span>
+        <span className="text-sm">{dateStr} // {timeStr}</span>
       </header>
 
       <h1 className="text-2xl font-bold mb-6">Welcome, Barangay 227</h1>
 
       {/* HOLDER DIGITS */}
       <div className="grid grid-cols-3 gap-6 mb-6">
-        <Card>
+        <Card className="bg-gray-900 text-white border-none">
           <CardContent className="p-4 text-center">
             <p className="text-gray-400">Total Documents Issued</p>
             <p className="text-2xl font-bold">34</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gray-900 text-white border-none">
           <CardContent className="p-4 text-center">
             <p className="text-gray-400">Valid Documents</p>
             <p className="text-2xl font-bold">30</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gray-900 text-white border-none">
           <CardContent className="p-4 text-center">
             <p className="text-gray-400">Invalid Documents</p>
             <p className="text-2xl font-bold">4</p>
@@ -41,7 +61,7 @@ const Dashboard: React.FC = () => {
 
       {/* System Status */}
       <div className="mb-6">
-        <Card>
+        <Card className="bg-gray-900 text-white border-none">
           <CardContent className="p-4 text-red-400 font-semibold">
             System Status: System detects suspicious patterns.
           </CardContent>
@@ -50,7 +70,7 @@ const Dashboard: React.FC = () => {
 
       {/* Recent Issuance + Fraud Monitor */}
       <div className="grid grid-cols-2 gap-6">
-        <Card>
+        <Card className="bg-gray-900 text-white border-none">
           <CardContent className="p-4">
             <h2 className="font-bold mb-4">Recent Issuance</h2>
             <table className="w-full text-sm">
@@ -78,7 +98,7 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gray-900 text-white border-none">
           <CardContent className="p-4">
             <h2 className="font-bold mb-4">Fraud Monitor</h2>
             <table className="w-full text-sm">

@@ -1,10 +1,29 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import Layout from "./Layout";
 import { useNavigate } from "react-router-dom";
 
 const Issuance: React.FC = () => {
   const navigate = useNavigate();
+
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const dateStr = now.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -20,7 +39,7 @@ const Issuance: React.FC = () => {
           <a href="#" className="hover:text-white">Home</a>
           <a href="#" className="hover:text-white">Contact</a>
         </nav>
-        <span className="text-sm">August 10, 2025</span>
+        <span className="text-sm">{dateStr} // {timeStr}</span>
       </header>
 
       <h1 className="text-2xl font-bold mb-6">Document Issuance</h1>
@@ -28,7 +47,7 @@ const Issuance: React.FC = () => {
       {/* Grid of Documents */}
       <div className="grid grid-cols-2 gap-6">
         <Card onClick={() => handleNavigate("/fbrgyclearance")}
-        className="hover:shadow-lg cursor-pointer transition">
+        className="bg-gray-900 text-white border-none hover:shadow-lg cursor-pointer transition">
           <CardContent className="p-4 text-center">
             <img
               src="https://drive.google.com/uc?export=view&id=14wmqCy4p3wnRK4lj1MemN3quoF_Usadz"
@@ -40,7 +59,7 @@ const Issuance: React.FC = () => {
         </Card>
 
         <Card onClick={() => handleNavigate("/fbusinesspermit")}
-        className="hover:shadow-lg cursor-pointer transition">
+        className="bg-gray-900 text-white border-none hover:shadow-lg cursor-pointer transition">
           <CardContent className="p-4 text-center">
             <img
               src="https://drive.google.com/uc?export=view&id=14wmqCy4p3wnRK4lj1MemN3quoF_Usadz"
@@ -52,7 +71,7 @@ const Issuance: React.FC = () => {
         </Card>
 
         <Card onClick={() => handleNavigate("/fcertindigency")}
-        className="hover:shadow-lg cursor-pointer transition">
+        className="bg-gray-900 text-white border-none hover:shadow-lg cursor-pointer transition">
           <CardContent className="p-4 text-center">
             <img
               src="https://drive.google.com/uc?export=view&id=14wmqCy4p3wnRK4lj1MemN3quoF_Usadz"
@@ -64,7 +83,7 @@ const Issuance: React.FC = () => {
         </Card>
 
         <Card onClick={() => handleNavigate("/fcertindigency")}
-        className="hover:shadow-lg cursor-pointer transition">
+        className="bg-gray-900 text-white border-none hover:shadow-lg cursor-pointer transition">
           <CardContent className="p-4 text-center">
             <img
               src="https://drive.google.com/uc?export=view&id=14wmqCy4p3wnRK4lj1MemN3quoF_Usadz"

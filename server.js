@@ -3,6 +3,7 @@ import express from "express";
 import mysql from "mysql2";
 import cors from "cors";
 import bodyParser from "body-parser";
+import crypto from "crypto";
 
 const app = express();
 const PORT = 5000;
@@ -25,6 +26,36 @@ if (err) {
     process.exit(1);
 }
 console.log(" Connected to MySQL Database");
+});
+
+// API endpoint for recent issuances (top-level)
+app.get("/api/recent-issuance", (req, res) => {
+  const queries = [
+    "SELECT 'indigency' AS type, LastName, FirstName, MiddleName, Address, Purpose, IssuedOn FROM certificate_of_indigency ORDER BY IssuedOn DESC LIMIT 10",
+    "SELECT 'clearance' AS type, LastName, FirstName, MiddleName, Address, Purpose, IssuedOn FROM barangay_clearance ORDER BY IssuedOn DESC LIMIT 10",
+    "SELECT 'businesspermit' AS type, last_name AS LastName, first_name AS FirstName, middle_name AS MiddleName, address AS Address, business_nature AS Purpose, issued_on AS IssuedOn FROM business_permit ORDER BY issued_on DESC LIMIT 10",
+  ];
+  Promise.all(
+    queries.map(
+      (q) =>
+        new Promise((resolve, reject) => {
+          db.query(q, (err, results) => {
+            if (err) return reject(err);
+            resolve(results);
+          });
+        })
+    )
+  )
+    .then(([indigency, clearance, businesspermit]) => {
+      const all = [...indigency, ...clearance, ...businesspermit].sort(
+        (a, b) => new Date(b.IssuedOn) - new Date(a.IssuedOn)
+      );
+      res.json({ recent: all.slice(0, 10) });
+    })
+    .catch((err) => {
+      console.error("Recent issuance error:", err);
+      res.status(500).json({ message: "Database error" });
+    });
 });
 
 // API endpoint for login
@@ -50,7 +81,6 @@ app.post("/api/login", (req, res) => {
   });
 });
 
-// API endpoint to save barangay clearance form
 // API endpoint to save certificate of indigency form
 app.post("/api/indigency", (req, res) => {
   const {
@@ -66,7 +96,6 @@ app.post("/api/indigency", (req, res) => {
     issuedOn,
   } = req.body;
 
-  // Validate required fields
   if (!LastName || !FirstName || !Address || !Age || !Birthdate || !Gender || !Purpose || !issuedOn) {
     return res.status(400).json({ message: "All required fields must be filled" });
   }
@@ -77,31 +106,26 @@ app.post("/api/indigency", (req, res) => {
     [LastName, FirstName, MiddleName, Address, Age, Birthdate, ContactNumber, Gender, Purpose, issuedOn],
     (err, result) => {
       if (err) {
-    app.get("/api/recent-issuance", (req, res) => {
-      // Example: get the 10 most recent issuances from all tables
-      const queries = [
-        "SELECT 'indigency' AS type, LastName, FirstName, MiddleName, Address, Purpose, IssuedOn FROM certificate_of_indigency ORDER BY IssuedOn DESC LIMIT 10",
-        "SELECT 'clearance' AS type, LastName, FirstName, MiddleName, Address, Purpose, IssuedOn FROM barangay_clearance ORDER BY IssuedOn DESC LIMIT 10",
-        "SELECT 'businesspermit' AS type, last_name AS LastName, first_name AS FirstName, middle_name AS MiddleName, address AS Address, business_nature AS Purpose, issued_on AS IssuedOn FROM business_permit ORDER BY issued_on DESC LIMIT 10"
-      ];
-      Promise.all(queries.map(q => new Promise((resolve, reject) => {
-        db.query(q, (err, results) => {
-          if (err) return reject(err);
-          resolve(results);
-        });
-      }))).then(([indigency, clearance, businesspermit]) => {
-        // Combine and sort by IssuedOn descending
-        const all = [...indigency, ...clearance, ...businesspermit].sort((a, b) => new Date(b.IssuedOn) - new Date(a.IssuedOn));
-        res.json({ recent: all.slice(0, 10) });
-      }).catch(err => {
-        console.error("Recent issuance error:", err);
-        res.status(500).json({ message: "Database error" });
-      });
-    });
         console.error("Insert error:", err);
         return res.status(500).json({ message: "Database error" });
       }
-      return res.json({ message: "Certificate of Indigency form submitted successfully" });
+      // Try to fetch DB-generated hash_code; fallback to computed if unavailable
+      db.query(
+        "SELECT hash_code FROM certificate_of_indigency ORDER BY created_at DESC LIMIT 1",
+        (e2, rows) => {
+          let hashcode;
+          if (!e2 && rows && rows[0] && rows[0].hash_code) {
+            hashcode = rows[0].hash_code;
+          } else {
+            hashcode = crypto
+              .createHash("sha256")
+              .update(String(result.insertId) + JSON.stringify(req.body))
+              .digest("hex")
+              .slice(0, 10);
+          }
+          return res.json({ message: "Certificate of Indigency form submitted successfully", id: result.insertId, hashcode });
+        }
+      );
     }
   );
 });
@@ -133,7 +157,22 @@ app.post("/api/clearance", (req, res) => {
         console.error("Insert error:", err);
         return res.status(500).json({ message: "Database error" });
       }
-      return res.json({ message: "Form submitted successfully", id: result.insertId });
+      db.query(
+        "SELECT hash_code FROM barangay_clearance ORDER BY created_at DESC LIMIT 1",
+        (e2, rows) => {
+          let hashcode;
+          if (!e2 && rows && rows[0] && rows[0].hash_code) {
+            hashcode = rows[0].hash_code;
+          } else {
+            hashcode = crypto
+              .createHash("sha256")
+              .update(String(result.insertId) + JSON.stringify(req.body))
+              .digest("hex")
+              .slice(0, 10);
+          }
+          return res.json({ message: "Form submitted successfully", id: result.insertId, hashcode });
+        }
+      );
     }
   );
 });
@@ -171,7 +210,22 @@ app.post("/api/businesspermit", (req, res) => {
         console.error("Insert error:", err.sqlMessage || err);
         return res.status(500).json({ message: "Database error: " + (err.sqlMessage || err.message || err) });
       }
-      return res.json({ message: "Business Permit form submitted successfully" });
+      db.query(
+        "SELECT hash_code FROM business_permit ORDER BY created_at DESC LIMIT 1",
+        (e2, rows) => {
+          let hashcode;
+          if (!e2 && rows && rows[0] && rows[0].hash_code) {
+            hashcode = rows[0].hash_code;
+          } else {
+            hashcode = crypto
+              .createHash("sha256")
+              .update(String(result.insertId) + JSON.stringify(req.body))
+              .digest("hex")
+              .slice(0, 10);
+          }
+          return res.json({ message: "Business Permit form submitted successfully", id: result.insertId, hashcode });
+        }
+      );
     }
   );
 });

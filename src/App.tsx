@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import type { ReactElement } from "react";
 import DocuCheck from "./pages/DocuCheck";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -7,6 +8,12 @@ import Temp from "./pages/temp";
 import BarangayClearanceForm from "./pages/Fbrgyclearance";
 import BusinessPermit from "./pages/Fbusinesspermit";
 import CertIndigency from "./pages/Fcertindigency";
+
+// Protected route component
+function ProtectedRoute({ children }: { children: ReactElement }) {
+  const isAuthenticated = typeof window !== 'undefined' && sessionStorage.getItem('isAuthenticated') === 'true';
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
 
 function App() {
   return (
@@ -21,19 +28,19 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         {/* Dashboard */}
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
         {/* Issuance page */}
-        <Route path="/issuance" element={<Issuance />} />
+        <Route path="/issuance" element={<ProtectedRoute><Issuance /></ProtectedRoute>} />
 
         {/* FORMS: brgy clearance */}
-        <Route path="/fbrgyclearance" element={<BarangayClearanceForm />} />
+        <Route path="/fbrgyclearance" element={<ProtectedRoute><BarangayClearanceForm /></ProtectedRoute>} />
 
         {/* FORMS: biz permit */}
-        <Route path="/fbusinesspermit" element={<BusinessPermit />} />
+        <Route path="/fbusinesspermit" element={<ProtectedRoute><BusinessPermit /></ProtectedRoute>} />
 
         {/* FORMS: cert of indigency */}
-        <Route path="/fcertindigency" element={<CertIndigency />} />
+        <Route path="/fcertindigency" element={<ProtectedRoute><CertIndigency /></ProtectedRoute>} />
         
 
         {/* TEMPORARY PAGE */}

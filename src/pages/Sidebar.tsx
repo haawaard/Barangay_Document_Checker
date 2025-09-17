@@ -1,17 +1,29 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Home, FileText, ShieldAlert, Lock } from "lucide-react";
 
-
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
 
-
   const handleLogout = () => {
-    navigate("/Login");
+    // Clear auth state and prevent navigating forward into protected pages
+    sessionStorage.removeItem('isAuthenticated');
+    // Navigate to login and replace history to block forward navigation
+    navigate("/login", { replace: true });
   };
 
+  // Optional: when sidebar mounts (protected layout), add a popstate handler to kick unauthenticated users to login
+  useEffect(() => {
+    const onPopState = () => {
+      const authed = sessionStorage.getItem('isAuthenticated') === 'true';
+      if (!authed) {
+        navigate('/login', { replace: true });
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [navigate]);
 
   return (
     <aside className="w-60 bg-[#1a1a2e] flex flex-col p-4 text-white">
@@ -28,7 +40,6 @@ const Sidebar: React.FC = () => {
           <Home size={18} /> Dashboard
         </NavLink>
 
-
         <NavLink
           to="/issuance"
           className={({ isActive }) =>
@@ -39,7 +50,6 @@ const Sidebar: React.FC = () => {
         >
           <FileText size={18} /> Issuance
         </NavLink>
-
 
         <NavLink
           to="/audit"
@@ -52,7 +62,6 @@ const Sidebar: React.FC = () => {
           <FileText size={18} /> Audit Logs
         </NavLink>
 
-
         <NavLink
           to="/fraud"
           className={({ isActive }) =>
@@ -63,7 +72,6 @@ const Sidebar: React.FC = () => {
         >
           <ShieldAlert size={18} /> Fraud Monitor
         </NavLink>
-
 
         <Button
           variant="secondary"
@@ -77,6 +85,5 @@ const Sidebar: React.FC = () => {
     </aside>
   );
 };
-
 
 export default Sidebar;

@@ -10,7 +10,7 @@ export default function Login() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
     setError("");
@@ -28,7 +28,8 @@ export default function Login() {
       });
       const data = await response.json();
       if (response.ok) {
-        navigate("/dashboard");
+        sessionStorage.setItem('isAuthenticated', 'true');
+        navigate("/dashboard", { replace: true });
       } else {
         setError(data.message || "Login failed. Please check your credentials.");
       }

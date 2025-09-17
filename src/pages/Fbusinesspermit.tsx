@@ -21,7 +21,16 @@ export default function Fbrgyclearance() {
     issuedOn: "",
   });
 
-  const handleSubmit = async () => {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [resultHash, setResultHash] = useState<string | null>(null);
+  const [resultId, setResultId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const submitToServer = async () => {
+    setSubmitting(true);
+    setSubmitError(null);
     try {
       const response = await fetch("http://localhost:5000/api/businesspermit", {
         method: "POST",
@@ -29,31 +38,45 @@ export default function Fbrgyclearance() {
         body: JSON.stringify(formData),
       });
       const data = await response.json();
+      console.log('Business permit submission response:', data);
       if (response.ok) {
-        alert("Business Permit form submitted successfully!");
-        setFormData({
-          LastName: "",
-          FirstName: "",
-          MiddleName: "",
-          Address: "",
-          Age: "",
-          Birthdate: "",
-          ContactNumber: "",
-          Gender: "",
-          BusinessName: "",
-          BusinessAddress: "",
-          Owner: "",
-          BusinessNature: "",
-          Classification: "",
-          issuedOn: "",
-        });
+        setResultId(data.id);
+        setResultHash(
+          data.hashcode || data.hash_code || data.hash || data.HashCode || data.Hashcode || ""
+        );
+        setShowConfirm(false);
+        setShowResult(true);
       } else {
-        alert(data.message || "Error submitting form");
+        setSubmitError(data.message || "Error submitting form");
       }
     } catch (error) {
-      alert("Network error. Please try again.");
-      console.error(error);
+      setSubmitError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleOpenConfirm = () => setShowConfirm(true);
+  const handleCloseResult = () => {
+    setShowResult(false);
+    setResultHash(null);
+    setResultId(null);
+    setFormData({
+      LastName: "",
+      FirstName: "",
+      MiddleName: "",
+      Address: "",
+      Age: "",
+      Birthdate: "",
+      ContactNumber: "",
+      Gender: "",
+      BusinessName: "",
+      BusinessAddress: "",
+      Owner: "",
+      BusinessNature: "",
+      Classification: "",
+      issuedOn: "",
+    });
   };
 
   const handleBack = () => {
@@ -251,11 +274,59 @@ export default function Fbrgyclearance() {
           <button onClick={handleBack} className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-500">
             Back
           </button>
-            <button onClick={handleSubmit} className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500">
+            <button onClick={handleOpenConfirm} className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500">
               Fill-Out Done
             </button>
         </div>
       </div>
+      {/* Confirm Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowConfirm(false)}>
+          <div className="relative bg-gray-900 text-white rounded-xl shadow-xl max-w-3xl w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">Review Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div><span className="text-gray-400">Last Name:</span> {formData.LastName}</div>
+              <div><span className="text-gray-400">First Name:</span> {formData.FirstName}</div>
+              <div><span className="text-gray-400">Middle Name:</span> {formData.MiddleName}</div>
+              <div><span className="text-gray-400">Address:</span> {formData.Address}</div>
+              <div><span className="text-gray-400">Age:</span> {formData.Age}</div>
+              <div><span className="text-gray-400">Birthdate:</span> {formData.Birthdate}</div>
+              <div><span className="text-gray-400">Contact #:</span> {formData.ContactNumber}</div>
+              <div><span className="text-gray-400">Gender:</span> {formData.Gender}</div>
+              <div><span className="text-gray-400">Business Name:</span> {formData.BusinessName}</div>
+              <div><span className="text-gray-400">Business Address:</span> {formData.BusinessAddress}</div>
+              <div><span className="text-gray-400">Owner:</span> {formData.Owner}</div>
+              <div><span className="text-gray-400">Nature:</span> {formData.BusinessNature}</div>
+              <div><span className="text-gray-400">Classification:</span> {formData.Classification}</div>
+              <div className="md:col-span-2"><span className="text-gray-400">Issued On:</span> {formData.issuedOn}</div>
+            </div>
+            {submitError && <div className="text-red-400 mt-3">{submitError}</div>}
+            <div className="flex justify-end gap-3 mt-6">
+              <button className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600" onClick={() => setShowConfirm(false)}>Cancel</button>
+              <button disabled={submitting} className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 disabled:opacity-50" onClick={submitToServer}>
+                {submitting ? "Submitting..." : "Confirm & Submit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Result Modal */}
+      {showResult && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={handleCloseResult}>
+          <div className="relative bg-gray-900 text-white rounded-xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-2">Submission Successful</h2>
+            <p className="text-gray-300">Your request has been recorded.</p>
+            <div className="mt-4 text-sm">
+              <div><span className="text-gray-400">Record ID:</span> {resultId}</div>
+              <div><span className="text-gray-400">Hash Code:</span> <span className="font-mono">{resultHash || 'Unavailable'}</span></div>
+            </div>
+            <div className="flex justify-end mt-6">
+              <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500" onClick={handleCloseResult}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

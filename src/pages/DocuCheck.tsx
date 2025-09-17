@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +10,8 @@ export default function PublicDocumentChecker() {
   const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const fileInputRef = useState<HTMLInputElement | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleBrgyLogin = () => {
@@ -24,8 +26,23 @@ export default function PublicDocumentChecker() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setUploadedImage(e.target.files[0]);
+      const file = e.target.files[0];
+      setUploadedImage(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      setShowPreview(true);
     }
+  };
+
+  // Cleanup object URL when file changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const closePreview = () => {
+    setShowPreview(false);
   };
 
   return (
@@ -122,6 +139,34 @@ export default function PublicDocumentChecker() {
           </Card>
         </div>
       </main>
+
+      {/* Image Preview Modal */}
+      {showPreview && previewUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={closePreview}
+        >
+          <div
+            className="relative bg-gray-900 rounded-xl shadow-xl max-w-3xl w-full p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closePreview}
+              className="absolute -top-3 -right-3 bg-transparent hover:bg-white/10 text-white rounded-full w-9 h-9 border border-white/40"
+              aria-label="Close preview"
+            >
+              ×
+            </button>
+            <div className="w-full h-full flex items-center justify-center">
+              <img
+                src={previewUrl}
+                alt="Uploaded preview"
+                className="max-h-[80vh] max-w-full object-contain rounded"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
