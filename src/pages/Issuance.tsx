@@ -4,7 +4,14 @@ import Layout from "./Layout";
 import { useNavigate } from "react-router-dom";
 
 const Issuance: React.FC = () => {
+
   const navigate = useNavigate();
+  useEffect(() => {
+    const authed = sessionStorage.getItem('isAuthenticated') === 'true';
+    if (!authed) {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
 
   const [now, setNow] = useState(new Date());
   useEffect(() => {

@@ -46,7 +46,7 @@ export default function PublicDocumentChecker() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 py-10">
+    <div className="min-h-screen bg-black text-white">
       {/* Navbar */}
       <header className="w-full flex justify-between items-center py-4 px-6 bg-blue-900 fixed top-0 left-0 z-50">
         <h1 className="text-lg font-bold flex items-center gap-2">
@@ -73,9 +73,9 @@ export default function PublicDocumentChecker() {
       </header>
 
       {/* Main Section */}
-      <main className="mt-10 flex flex-col items-center justify-start">
+      <main className="pt-24 px-6 min-h-[calc(100vh-64px)] flex flex-col items-center justify-center">
         <motion.h2
-          className="text-4xl font-extrabold mb-10 text-center"
+          className="text-4xl font-extrabold mb-8 text-center"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
         >

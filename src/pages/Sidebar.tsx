@@ -7,10 +7,10 @@ const Sidebar: React.FC = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // Clear auth state and prevent navigating forward into protected pages
-    sessionStorage.removeItem('isAuthenticated');
-    // Navigate to login and replace history to block forward navigation
-    navigate("/login", { replace: true });
+    // Clear auth state and any other session state
+    sessionStorage.clear();
+    // Replace current entry with login and reload document to drop BFCache
+    window.location.replace('/login');
   };
 
   // Optional: when sidebar mounts (protected layout), add a popstate handler to kick unauthenticated users to login

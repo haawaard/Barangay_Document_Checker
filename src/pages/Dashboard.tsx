@@ -1,8 +1,18 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import Layout from "./Layout";
 
 const Dashboard: React.FC = () => {
+
+  const navigate = useNavigate();
+  useEffect(() => {
+    const authed = sessionStorage.getItem('isAuthenticated') === 'true';
+    if (!authed) {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
+
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
