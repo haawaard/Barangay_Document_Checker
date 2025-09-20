@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toPng } from "html-to-image";
+import { PDFDocument } from 'pdf-lib';
 
 export default function Fcertindigency() {
   const navigate = useNavigate();
-  const templateSrc = "/indigency_template.png";
   
   const [formData, setFormData] = useState({
     LastName: "",
@@ -26,39 +25,22 @@ export default function Fcertindigency() {
   const [resultId, setResultId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const previewRef = useRef<HTMLDivElement | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
-  const [templateReady, setTemplateReady] = useState(false);
-  const [templateError, setTemplateError] = useState<string | null>(null);
-  const [templateSize, setTemplateSize] = useState<{ w: number; h: number } | null>(null);
-  // Manual coordinates (in px) relative to the template's natural size.
-  // Edit these numbers to align text to your template.
-  const COORDS = {
-    name: { top: 150, left: 300, width: 360 },
-    address: { top: 245, left: 300, width: 420 },
-    purpose: { top: 555, left: 520, width: 240 },
-    date: { top: 640, left: 600, width: 220 },
-    signature: { top: 900, left: 120, width: 320 },
-  } as const;
-  
-  const fontSizes = useMemo(() => {
-    const baseH = 1123; // ~A4 @ 96dpi
-    const h = templateSize?.h || baseH;
-    const scale = h / baseH;
-    return {
-      // Aim ~12pt (16px) at base height, scaled otherwise
-      main: Math.max(12, Math.round(16 * scale)),
-      small: Math.max(11, Math.round(14 * scale)),
-      sig: Math.max(12, Math.round(16 * scale)),
-    };
-  }, [templateSize]);
+  const [noMiddleName, setNoMiddleName] = useState(false);
+  const [showReadyToPrint, setShowReadyToPrint] = useState(false);
 
   const fullName = useMemo(() => {
-    const parts = [formData.FirstName, formData.MiddleName, formData.LastName].filter(Boolean);
-    return parts.join(" ");
-  }, [formData.FirstName, formData.MiddleName, formData.LastName]);
+    const parts = [formData.FirstName];
+    if (!noMiddleName && formData.MiddleName) {
+      parts.push(formData.MiddleName);
+    }
+    if (formData.LastName) {
+      parts.push(formData.LastName);
+    }
+    return parts.filter(Boolean).join(" ");
+  }, [formData.FirstName, formData.MiddleName, formData.LastName, noMiddleName]);
 
   const issuedOnPretty = useMemo(() => {
     if (!formData.issuedOn) return "";
@@ -70,67 +52,130 @@ export default function Fcertindigency() {
     }
   }, [formData.issuedOn]);
 
-
-  
-
+  // Set current date automatically for Issued On
   useEffect(() => {
-    // Preload the template image and capture its real size
-    setTemplateReady(false);
-    setTemplateError(null);
-    const img = new Image();
-    img.onload = () => {
-      setTemplateSize({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
-      setTemplateReady(true);
-    };
-    img.onerror = () => {
-      setTemplateError("Cannot load template at " + templateSrc);
-      setTemplateReady(false);
-    };
-    img.src = templateSrc;
-  }, [templateSrc]);
+    const today = new Date();
+    const formattedDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    setFormData(prev => ({ ...prev, issuedOn: formattedDate }));
+  }, []);
 
-  useEffect(() => {
-    if (!showConfirm || activeTab !== "preview") return;
-    if (!previewRef.current) return;
-    if (!templateReady) return; // wait for template to load
-    const generate = async () => {
-      setGenerating(true);
-      setGenError(null);
-      try {
-        const dataUrl = await toPng(previewRef.current!, {
-          cacheBust: true,
-          pixelRatio: 2,
-          backgroundColor: "#ffffff",
+  // PDF generation is now triggered only in Ready-to-Print modal
+
+
+  // Generate PDF from template with AcroForms
+  const generatePDF = async () => {
+    setGenerating(true);
+    setGenError(null);
+    try {
+      console.log('Starting PDF generation...');
+      console.log('Fetching PDF template from:', '/indigency_template.pdf');
+      
+      // Load the PDF template with AcroForms
+      const templateBytes = await fetch('/indigency_template.pdf').then(res => {
+        console.log('PDF fetch response:', {
+          ok: res.ok,
+          status: res.status,
+          statusText: res.statusText,
+          url: res.url,
+          contentType: res.headers.get('content-type')
         });
-        setImageUrl(dataUrl);
-      } catch (e) {
-        setGenError("Failed to generate preview. Ensure template image exists and is same-origin.");
-      } finally {
-        setGenerating(false);
-      }
-    };
-    // allow DOM to paint
-    const id = setTimeout(generate, 50);
-    return () => clearTimeout(id);
-  }, [showConfirm, activeTab, formData, fullName, issuedOnPretty, templateReady, templateSize]);
+        
+        if (!res.ok) {
+          throw new Error(`Failed to load PDF template: ${res.status} ${res.statusText}. URL: ${res.url}`);
+        }
+        return res.arrayBuffer();
+      });
+      
+      console.log('PDF template loaded successfully, size:', templateBytes.byteLength, 'bytes');
+      const pdfDoc = await PDFDocument.load(templateBytes);
+      console.log('PDF document parsed successfully');
+      
+      const form = pdfDoc.getForm();
+      console.log('PDF form extracted successfully');
 
-  const handlePrintImage = () => {
-    if (!imageUrl) return;
-    const w = window.open("", "_blank", "width=1000,height=800");
-    if (!w) return;
-    w.document.write(`<!doctype html><html><head><meta charset='utf-8'><title>Print</title>
-      <style>body{margin:0;background:#fff}img{width:210mm; height:auto; display:block; margin:0 auto}</style>
-    </head><body><img src='${imageUrl}' alt='Certificate Preview'/></body></html>`);
-    w.document.close();
-    w.focus();
-    w.onload = () => w.print();
+      // Helper function to safely fill text fields
+      const fillTextField = (fieldName: string, value: string) => {
+        try {
+          const field = form.getTextField(fieldName);
+          field.setText(value || '');
+          console.log(`Successfully filled field '${fieldName}' with:`, value);
+        } catch (e) {
+          console.warn(`Field '${fieldName}' not found in PDF template`);
+        }
+      };
+
+      // Create the certification text with variables filled in
+      const certificationText = `This is to certify that ${fullName} of legal age, is a bonafide resident of this Barangay at ${formData.Address}, and has no derogatory record accountabilities filed as of the date.
+
+Further certify that ${fullName} belongs to one of our indigent families in the community. The family's income is not sufficient to support financial expenses.
+
+Hence, the undersigned is referring to your good office/institution so he/she could avail of ${formData.Purpose}. We will highly appreciate your kindness.
+
+This certification is being issued to attest veracity of the above and for other legal purpose it may serve. Attached herewith are necessary documents for reference.
+
+Done in the City of Manila, this ${issuedOnPretty || formData.issuedOn}`;
+
+      // Fill the main certification text field
+      fillTextField('certification_text', certificationText);
+      
+      // Fill individual variable fields if they exist
+      fillTextField('full_name', fullName);
+      fillTextField('address', formData.Address);
+      fillTextField('purpose', formData.Purpose);
+      fillTextField('issued_on', issuedOnPretty || formData.issuedOn);
+
+      // Flatten the form to make all fields non-editable
+      form.flatten();
+      console.log('PDF form flattened successfully');
+
+      // Generate the filled PDF
+      const pdfBytes = await pdfDoc.save();
+      console.log('PDF generated successfully, size:', pdfBytes.length, 'bytes');
+      
+      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      console.log('PDF blob URL created:', url);
+      setPdfUrl(url);
+      
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      let errorMessage = 'Failed to generate PDF.';
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('404')) {
+          errorMessage = 'PDF template not found. Please ensure indigency_template.pdf exists in /public/ folder and the development server is running on port 5173.';
+        } else if (error.message.includes('Failed to load PDF template')) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = `PDF generation error: ${error.message}`;
+        }
+      }
+      
+      setGenError(errorMessage);
+    } finally {
+      setGenerating(false);
+    }
   };
 
-  const handleDownloadImage = () => {
-    if (!imageUrl) return;
+  // PDF generation is now triggered only in Ready-to-Print modal
+
+  const handlePrintPDF = () => {
+    if (!pdfUrl) return;
+    const w = window.open(pdfUrl, '_blank');
+    if (w) {
+      w.onload = () => w.print();
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!pdfUrl) return;
     const a = document.createElement("a");
-    a.href = imageUrl;
-    a.download = "indigency_certificate.png";
+    a.href = pdfUrl;
+    a.download = "indigency_certificate.pdf";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -145,8 +190,14 @@ export default function Fcertindigency() {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
-    if (name === "Birthdate") {
+    const { name, value, checked } = e.target as HTMLInputElement;
+    
+    if (name === "noMiddleName") {
+      setNoMiddleName(checked);
+      if (checked) {
+        setFormData((prev) => ({ ...prev, MiddleName: "" }));
+      }
+    } else if (name === "Birthdate") {
       // Calculate age from birthdate
       const birthDateObj = new Date(value);
       const today = new Date();
@@ -165,25 +216,32 @@ export default function Fcertindigency() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      console.log('Submitting form data:', formData);
       const response = await fetch("http://localhost:5000/api/indigency", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
+      
+      console.log('Response status:', response.status);
       const data = await response.json();
       console.log('Indigency submission response:', data);
+      
       if (response.ok) {
-        setResultId(data.id);
+        setResultId(data.id || data.clearance_id);
         setResultHash(
           data.hashcode || data.hash_code || data.hash || data.HashCode || data.Hashcode || ""
         );
         setShowConfirm(false);
         setShowResult(true);
       } else {
-        setSubmitError(data.message || "Submission failed");
+        console.error('Server error response:', data);
+        setSubmitError(data.message || `Server error: ${response.status}`);
       }
     } catch (error) {
-      setSubmitError("Network error. Please try again.");
+      console.error('Network error details:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setSubmitError(`Network error: ${errorMessage || 'Please ensure the backend server is running on port 5000'}`);
     } finally {
       setSubmitting(false);
     }
@@ -192,8 +250,18 @@ export default function Fcertindigency() {
   const handleOpenConfirm = () => { setActiveTab("details"); setShowConfirm(true); };
   const handleCloseResult = () => {
     setShowResult(false);
+    setShowReadyToPrint(true);
+    generatePDF(); // Generate PDF for Ready-to-Print modal
+  };
+
+  const handleCloseReadyToPrint = () => {
+    setShowReadyToPrint(false);
     setResultHash(null);
     setResultId(null);
+    setNoMiddleName(false);
+    setPdfUrl(null);
+    const today = new Date();
+    const formattedDate = today.toISOString().split('T')[0];
     setFormData({
       LastName: "",
       FirstName: "",
@@ -204,7 +272,7 @@ export default function Fcertindigency() {
       ContactNumber: "",
       Gender: "",
       Purpose: "",
-      issuedOn: "",
+      issuedOn: formattedDate,
     });
   };
 
@@ -245,8 +313,20 @@ export default function Fcertindigency() {
             name="MiddleName"
             value={formData.MiddleName}
             onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
+            disabled={noMiddleName}
+            className={`w-full px-3 py-2 rounded text-gray-300 ${noMiddleName ? 'bg-gray-700 cursor-not-allowed' : 'bg-gray-800'}`}
           />
+          <div className="flex items-center mt-2">
+            <input
+              type="checkbox"
+              id="noMiddleName"
+              name="noMiddleName"
+              checked={noMiddleName}
+              onChange={handleChange}
+              className="mr-2"
+            />
+            <label htmlFor="noMiddleName" className="text-sm text-gray-400 cursor-pointer">No Middle Name</label>
+          </div>
         </div>
 
         {/* Address */}
@@ -336,6 +416,7 @@ export default function Fcertindigency() {
             onChange={handleChange}
             className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
           />
+          <p className="text-xs text-gray-500 mt-1">Automatically set to today's date</p>
         </div>
 
         {/* Buttons functios */}
@@ -350,168 +431,72 @@ export default function Fcertindigency() {
       </div>
       {/* Confirm Modal */}
       {showConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShowConfirm(false)}>
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-2" onClick={() => setShowConfirm(false)}>
           <div className="relative bg-gray-900 text-white rounded-xl shadow-xl w-full max-w-5xl p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">Review Submission</h2>
               <div className="flex gap-2">
                 <button onClick={() => setActiveTab("details")} className={`px-3 py-1 rounded ${activeTab === "details" ? "bg-blue-700" : "bg-gray-700 hover:bg-gray-600"}`}>Details</button>
-                <button onClick={() => setActiveTab("preview")} className={`px-3 py-1 rounded ${activeTab === "preview" ? "bg-blue-700" : "bg-gray-700 hover:bg-gray-600"}`}>Ready-to-Print</button>
+                <button onClick={() => setActiveTab("preview")} className={`px-3 py-1 rounded ${activeTab === "preview" ? "bg-blue-700" : "bg-gray-700 hover:bg-gray-600"}`}>Form Preview</button>
               </div>
             </div>
 
             {activeTab === "details" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                <div><span className="text-gray-400">Last Name:</span> {formData.LastName}</div>
-                <div><span className="text-gray-400">First Name:</span> {formData.FirstName}</div>
-                <div><span className="text-gray-400">Middle Name:</span> {formData.MiddleName}</div>
-                <div><span className="text-gray-400">Address:</span> {formData.Address}</div>
-                <div><span className="text-gray-400">Age:</span> {formData.Age}</div>
-                <div><span className="text-gray-400">Birthdate:</span> {formData.Birthdate}</div>
-                <div><span className="text-gray-400">Contact #:</span> {formData.ContactNumber}</div>
-                <div><span className="text-gray-400">Gender:</span> {formData.Gender}</div>
-                <div className="md:col-span-2"><span className="text-gray-400">Purpose:</span> {formData.Purpose}</div>
-                <div className="md:col-span-2"><span className="text-gray-400">Issued On:</span> {issuedOnPretty || formData.issuedOn}</div>
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-6">
+                  <div><span className="text-gray-400">Last Name:</span> {formData.LastName}</div>
+                  <div><span className="text-gray-400">First Name:</span> {formData.FirstName}</div>
+                  <div><span className="text-gray-400">Middle Name:</span> {formData.MiddleName}</div>
+                  <div><span className="text-gray-400">Address:</span> {formData.Address}</div>
+                  <div><span className="text-gray-400">Age:</span> {formData.Age}</div>
+                  <div><span className="text-gray-400">Birthdate:</span> {formData.Birthdate}</div>
+                  <div><span className="text-gray-400">Contact #:</span> {formData.ContactNumber}</div>
+                  <div><span className="text-gray-400">Gender:</span> {formData.Gender}</div>
+                  <div className="md:col-span-2"><span className="text-gray-400">Purpose:</span> {formData.Purpose}</div>
+                  <div className="md:col-span-2"><span className="text-gray-400">Issued On:</span> {issuedOnPretty || formData.issuedOn}</div>
+                </div>
               </div>
             )}
 
             {activeTab === "preview" && (
-              <div className="w-full">
-                {/* Hidden off-screen DOM to rasterize into image */}
-                <div style={{ position: "absolute", left: -99999, top: 0 }}>
-                  <div
-                    ref={previewRef}
-                    className="relative bg-white"
-                    style={{ width: templateSize?.w || 794, height: templateSize?.h || 1123 }}
-                  >
-                    <img src={templateSrc} alt="Certificate Template" className="absolute inset-0 w-full h-full object-contain" />
-                    {/* Manual overlay positions (edit COORDS above) */}
-                    {/* Name inside first paragraph parentheses */}
-                    <div
-                      className="absolute text-black"
-                      style={{
-                        top: COORDS.name.top,
-                        left: COORDS.name.left,
-                        fontFamily: 'Times New Roman, serif',
-                        fontSize: fontSizes.main,
-                        fontWeight: 700,
-                        lineHeight: 1.1,
-                        whiteSpace: 'nowrap',
-                        color: '#000',
-                        width: COORDS.name.width,
-                        textAlign: 'center',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {fullName || "(NAME OF APPLICANT)"}
+              <div className="max-h-96 overflow-y-auto">
+                <div className="bg-gray-800 rounded-md p-4">
+                  <h3 className="text-lg font-semibold mb-4 text-center">Certificate of Indigency Preview</h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="text-center mb-6">
+                      <div className="text-base font-bold">CERTIFICATE OF INDIGENCY</div>
+                      <div className="text-sm text-gray-400 mt-2">TO WHOM IT MAY CONCERN:</div>
                     </div>
-                    {/* Address inside first paragraph parentheses */}
-                    <div
-                      className="absolute text-black"
-                      style={{
-                        top: COORDS.address.top,
-                        left: COORDS.address.left,
-                        fontFamily: 'Times New Roman, serif',
-                        fontSize: fontSizes.main,
-                        lineHeight: 1.1,
-                        whiteSpace: 'nowrap',
-                        color: '#000',
-                        width: COORDS.address.width,
-                        textAlign: 'center',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {formData.Address || "(ADDRESS)"}
+                    
+                    <div className="text-justify leading-relaxed">
+                      <p>This is to certify that <span className="font-semibold text-blue-300">{fullName}</span> of legal age, is a bonafide resident of this Barangay at <span className="font-semibold text-blue-300">{formData.Address}</span>, and has no derogatory record accountabilities filed as of the date.</p>
+                      
+                      <p className="mt-3">Further certify that <span className="font-semibold text-blue-300">{fullName}</span> belongs to one of our indigent families in the community. The family's income is not sufficient to support financial expenses.</p>
+                      
+                      <p className="mt-3">Hence, the undersigned is referring to your good office/institution so he/she could avail of <span className="font-semibold text-blue-300">{formData.Purpose}</span>. We will highly appreciate your kindness.</p>
+                      
+                      <p className="mt-3">This certification is being issued to attest veracity of the above and for other legal purpose it may serve. Attached herewith are necessary documents for reference.</p>
+                      
+                      <p className="mt-4">Done in the City of Manila, this <span className="font-semibold text-blue-300">{issuedOnPretty || formData.issuedOn}</span></p>
                     </div>
-                    {/* Purpose in the 'EX.' parentheses */}
-                    <div
-                      className="absolute text-black"
-                      style={{
-                        top: COORDS.purpose.top,
-                        left: COORDS.purpose.left,
-                        fontFamily: 'Times New Roman, serif',
-                        fontSize: fontSizes.main,
-                        lineHeight: 1.1,
-                        whiteSpace: 'nowrap',
-                        color: '#000',
-                        width: COORDS.purpose.width,
-                        textAlign: 'center',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {formData.Purpose || "(PURPOSE)"}
-                    </div>
-                    {/* Issued date inline near 'Done in the City...' */}
-                    <div
-                      className="absolute text-black"
-                      style={{
-                        top: COORDS.date.top,
-                        left: COORDS.date.left,
-                        fontFamily: 'Times New Roman, serif',
-                        fontSize: fontSizes.small,
-                        lineHeight: 1.1,
-                        whiteSpace: 'nowrap',
-                        color: '#000',
-                        width: COORDS.date.width,
-                        textAlign: 'center',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {issuedOnPretty || formData.issuedOn || "(DATE)"}
-                    </div>
-                    {/* Signature line applicant name at bottom */}
-                    <div
-                      className="absolute text-black"
-                      style={{
-                        top: COORDS.signature.top,
-                        left: COORDS.signature.left,
-                        fontFamily: 'Times New Roman, serif',
-                        fontSize: fontSizes.sig,
-                        fontWeight: 700,
-                        lineHeight: 1.1,
-                        whiteSpace: 'nowrap',
-                        color: '#000',
-                        width: COORDS.signature.width,
-                        textAlign: 'center',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {fullName || "(APPLICANT)"}
+                    
+                    <div className="mt-6 pt-4 border-t border-gray-600">
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div><span className="text-gray-400">Full Name:</span> {fullName}</div>
+                        <div><span className="text-gray-400">Age:</span> {formData.Age}</div>
+                        <div><span className="text-gray-400">Address:</span> {formData.Address}</div>
+                        <div><span className="text-gray-400">Gender:</span> {formData.Gender}</div>
+                        <div><span className="text-gray-400">Contact:</span> {formData.ContactNumber}</div>
+                        <div><span className="text-gray-400">Purpose:</span> {formData.Purpose}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                <div className="min-h-[200px] max-h-[70vh] overflow-auto flex items-center justify-center bg-gray-800 rounded-md p-3">
-                  {!templateReady && !templateError && <span className="text-gray-300 text-sm">Loading template...</span>}
-                  {templateError && <span className="text-red-400 text-sm">{templateError}</span>}
-                  {templateReady && generating && <span className="text-gray-300 text-sm">Generating preview...</span>}
-                  {!generating && genError && <span className="text-red-400 text-sm">{genError}</span>}
-                  {!generating && !genError && imageUrl && (
-                    <img
-                      src={imageUrl}
-                      alt="Certificate Preview"
-                      className="rounded object-contain"
-                      style={{ maxWidth: "620px", width: "100%", height: "auto", maxHeight: "68vh" }}
-                    />
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-2 mt-3">
-                  <button className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600" onClick={() => setActiveTab("details")}>Back to Details</button>
-                  <button disabled={!imageUrl} className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50" onClick={handleDownloadImage}>Download PNG</button>
-                  <button disabled={!imageUrl} className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50" onClick={handlePrintImage}>Print</button>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">Place your template at <code>/public/indigency_template.png</code>. Adjust positions in code to align text.</p>
               </div>
             )}
 
             {submitError && <div className="text-red-400 mt-3">{submitError}</div>}
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-700">
               <button className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600" onClick={() => setShowConfirm(false)}>Cancel</button>
               <button disabled={submitting} className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 disabled:opacity-50" onClick={submitToServer}>
                 {submitting ? "Submitting..." : "Confirm & Submit"}
@@ -533,6 +518,63 @@ export default function Fcertindigency() {
             </div>
             <div className="flex justify-end mt-6">
               <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500" onClick={handleCloseResult}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ready-to-Print Modal */}
+      {showReadyToPrint && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-2">
+          <div className="relative bg-gray-900 text-white rounded-xl shadow-xl w-full max-w-7xl p-6" style={{ height: '95vh' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Ready-to-Print</h2>
+            </div>
+
+            <div className="flex flex-col" style={{ height: 'calc(95vh - 120px)' }}>
+              <div className="flex-1 bg-gray-800 rounded-md p-3 mb-3">
+                {generating && <div className="flex items-center justify-center h-full"><span className="text-gray-300 text-sm">Generating PDF...</span></div>}
+                {!generating && genError && <div className="flex items-center justify-center h-full"><span className="text-red-400 text-sm">{genError}</span></div>}
+                {!generating && !genError && pdfUrl && (
+                  <iframe
+                    src={pdfUrl}
+                    className="w-full h-full rounded"
+                    title="Certificate Preview"
+                    style={{ minHeight: '600px' }}
+                  />
+                )}
+                {!generating && !genError && !pdfUrl && (
+                  <div className="flex items-center justify-center h-full">
+                    <span className="text-gray-300 text-sm">Loading PDF...</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-gray-400">Your certificate is ready for printing or download</p>
+                <div className="flex gap-2">
+                  <button 
+                    disabled={!pdfUrl} 
+                    className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50" 
+                    onClick={handlePrintPDF}
+                  >
+                    Print
+                  </button>
+                  <button 
+                    disabled={!pdfUrl} 
+                    className="px-3 py-2 rounded bg-green-600 hover:bg-green-500 disabled:opacity-50" 
+                    onClick={handleDownloadPDF}
+                  >
+                    Download PDF
+                  </button>
+                  <button 
+                    className="px-3 py-2 rounded bg-red-600 hover:bg-red-500" 
+                    onClick={handleCloseReadyToPrint}
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

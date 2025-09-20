@@ -83,6 +83,9 @@ app.post("/api/login", (req, res) => {
 
 // API endpoint to save certificate of indigency form
 app.post("/api/indigency", (req, res) => {
+  console.log("Received POST request to /api/indigency");
+  console.log("Request body:", req.body);
+  
   const {
     LastName,
     FirstName,
@@ -100,32 +103,29 @@ app.post("/api/indigency", (req, res) => {
     return res.status(400).json({ message: "All required fields must be filled" });
   }
 
-  const query = `INSERT INTO certificate_of_indigency (LastName, FirstName, MiddleName, Address, Age, Birthdate, ContactNumber, Gender, Purpose, IssuedOn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  // Generate hash_code before insert since it's required by schema
+  const hashcode = crypto
+    .createHash("sha256")
+    .update(JSON.stringify(req.body) + Date.now().toString())
+    .digest("hex")
+    .slice(0, 32); // Match CHAR(32) in schema
+
+  const query = `INSERT INTO certificate_of_indigency (LastName, FirstName, MiddleName, Address, Age, Birthdate, ContactNumber, Gender, Purpose, IssuedOn, hash_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   db.query(
     query,
-    [LastName, FirstName, MiddleName, Address, Age, Birthdate, ContactNumber, Gender, Purpose, issuedOn],
+    [LastName, FirstName, MiddleName, Address, Age, Birthdate, ContactNumber, Gender, Purpose, issuedOn, hashcode],
     (err, result) => {
       if (err) {
         console.error("Insert error:", err);
         return res.status(500).json({ message: "Database error" });
       }
-      // Try to fetch DB-generated hash_code; fallback to computed if unavailable
-      db.query(
-        "SELECT hash_code FROM certificate_of_indigency ORDER BY created_at DESC LIMIT 1",
-        (e2, rows) => {
-          let hashcode;
-          if (!e2 && rows && rows[0] && rows[0].hash_code) {
-            hashcode = rows[0].hash_code;
-          } else {
-            hashcode = crypto
-              .createHash("sha256")
-              .update(String(result.insertId) + JSON.stringify(req.body))
-              .digest("hex")
-              .slice(0, 10);
-          }
-          return res.json({ message: "Certificate of Indigency form submitted successfully", id: result.insertId, hashcode });
-        }
-      );
+      
+      console.log("Insert successful, record ID:", result.insertId);
+      return res.json({ 
+        message: "Certificate of Indigency form submitted successfully", 
+        id: result.insertId, 
+        hashcode 
+      });
     }
   );
 });
