@@ -4,6 +4,7 @@ import Layout from "./Layout";
 import { useNavigate } from "react-router-dom";
 
 const Issuance: React.FC = () => {
+  const [showModal, setShowModal] = useState(false);
 
   const navigate = useNavigate();
   useEffect(() => {
@@ -33,19 +34,17 @@ const Issuance: React.FC = () => {
   });
 
   const handleNavigate = (path: string) => {
-    navigate(path);
-
+    if (path === 'add-forms') {
+      setShowModal(true);
+    } else {
+      navigate(path);
+    }
   };
 
   return (
     <Layout>
-      {/* Header */}
-      <header className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
-        <nav className="flex gap-6 text-gray-300">
-          <a href="#" className="hover:text-white">About</a>
-          <a href="#" className="hover:text-white">Home</a>
-          <a href="#" className="hover:text-white">Contact</a>
-        </nav>
+      {/* Header with Date/Time Only */}
+      <header className="flex justify-end items-center border-b border-gray-700 pb-4 mb-6">
         <span className="text-sm">{dateStr} // {timeStr}</span>
       </header>
 
@@ -89,18 +88,38 @@ const Issuance: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card onClick={() => handleNavigate("/fcertindigency")}
+        <Card onClick={() => handleNavigate("add-forms")}
         className="bg-gray-900 text-white border-none hover:shadow-lg cursor-pointer transition">
           <CardContent className="p-4 text-center">
-            <img
-              src="https://drive.google.com/uc?export=view&id=14wmqCy4p3wnRK4lj1MemN3quoF_Usadz"
-              alt="Certificate of Residency"
-              className="w-full h-40 object-contain mb-4"
-            />
-            <p className="font-semibold">Certificate of Residency</p>
+            <div className="w-full h-40 flex items-center justify-center mb-4 bg-slate-800/50 rounded-lg border border-slate-700">
+              <div className="text-6xl text-slate-400">+</div>
+            </div>
+            <p className="font-semibold">Add Forms</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal for Add Forms */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 text-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="text-4xl mb-4">🚧</div>
+              <h2 className="text-xl font-bold mb-3">Feature In Development</h2>
+              <p className="text-gray-300 mb-6">
+                The "Add Forms" feature is currently under development. 
+                This functionality will be available in a future update.
+              </p>
+              <button 
+                onClick={() => setShowModal(false)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

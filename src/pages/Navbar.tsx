@@ -1,21 +1,17 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const Navbar: React.FC = () => {
+  const navigate = useNavigate();
+  
+  // Check authentication status
+  const isAuthenticated = typeof window !== 'undefined' && sessionStorage.getItem('isAuthenticated') === 'true';
 
   const handleReturn = () => {
     {/* RETURN TO DOCUCHECK FUNCTION */}
     navigate("/docucheck");
   };
-
-    const navigate = useNavigate();
-    useEffect(() => {
-      const authed = sessionStorage.getItem('isAuthenticated') === 'true';
-      if (!authed) {
-        navigate('/login', { replace: true });
-      }
-    }, [navigate]);
   
   return (
     <header className="w-full flex justify-between items-center py-4 px-6 bg-blue-900 fixed top-0 left-0 z-50">
@@ -32,7 +28,10 @@ const Navbar: React.FC = () => {
         <Link to="/about" className="hover:text-blue-400 transition">
           About
         </Link>
-        <Link to="/" className="hover:text-blue-400 transition">
+        <Link 
+          to={isAuthenticated ? "/dashboard" : "/docucheck"} 
+          className="hover:text-blue-400 transition"
+        >
           Home
         </Link>
         <Link to="/contact" className="hover:text-blue-400 transition">

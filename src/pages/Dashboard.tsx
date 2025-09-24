@@ -88,8 +88,12 @@ const Dashboard: React.FC = () => {
 
   return (
     <Layout>
-      <h1 className="text-2xl font-bold mb-6">Welcome, Barangay 227</h1>
-      <span className="text-sm">{dateStr} // {timeStr}</span>
+      {/* Header with Date/Time Only */}
+      <header className="flex justify-end items-center border-b border-gray-700 pb-4 mb-6">
+        <span className="text-sm">{dateStr} // {timeStr}</span>
+      </header>
+
+      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
       {/* EXPANDED STATISTICS CARDS */}
       <div className="grid grid-cols-4 gap-6 mb-6">
@@ -132,32 +136,32 @@ const Dashboard: React.FC = () => {
 
 
 
-      {/* Recent Issuance + Fraud Monitor */}
+      {/* Recent Issuance + Fraud Monitor - Expanded */}
       <div className="grid grid-cols-2 gap-6">
         <Card className="bg-gray-900 text-white border-none">
-          <CardContent className="p-4">
-            <h2 className="font-bold mb-4 text-lg">Recent Document Issuance</h2>
-            <div className="max-h-48 overflow-y-auto">
+          <CardContent className="p-6">
+            <h2 className="font-bold mb-4 text-xl">Recent Document Issuance</h2>
+            <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-gray-900">
                   <tr className="text-gray-400 text-left border-b border-gray-700">
-                    <th className="pb-2 pr-4">Document Type</th>
-                    <th className="pb-2 pr-4">Date Issued</th>
-                    <th className="pb-2">Status</th>
+                    <th className="pb-3 pr-4 text-base">Document Type</th>
+                    <th className="pb-3 pr-4 text-base">Date Issued</th>
+                    <th className="pb-3 text-base">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={3} className="text-center py-4">Loading...</td>
+                      <td colSpan={3} className="text-center py-6 text-base">Loading...</td>
                     </tr>
                   ) : recentIssuance.length > 0 ? (
-                    recentIssuance.slice(0, 8).map((item: any, index: number) => (
+                    recentIssuance.slice(0, 12).map((item: any, index: number) => (
                       <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/50">
-                        <td className="py-2 pr-4">{item.DocumentType || 'Unknown'}</td>
-                        <td className="py-2 pr-4">{formatDate(item.DateIssued)}</td>
-                        <td className="py-2">
-                          <span className="px-2 py-1 rounded-full text-xs bg-green-900 text-green-300">
+                        <td className="py-3 pr-4 text-base">{item.DocumentType || 'Unknown'}</td>
+                        <td className="py-3 pr-4 text-base">{formatDate(item.DateIssued)}</td>
+                        <td className="py-3">
+                          <span className="px-3 py-1 rounded-full text-sm bg-green-900 text-green-300">
                             Issued
                           </span>
                         </td>
@@ -165,7 +169,7 @@ const Dashboard: React.FC = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={3} className="text-center py-4 text-gray-400">No recent issuance found</td>
+                      <td colSpan={3} className="text-center py-6 text-gray-400 text-base">No recent issuance found</td>
                     </tr>
                   )}
                 </tbody>
@@ -175,41 +179,41 @@ const Dashboard: React.FC = () => {
         </Card>
 
         <Card className="bg-gray-900 text-white border-none">
-          <CardContent className="p-4">
-            <h2 className="font-bold mb-4 text-lg">QR Verification Monitor</h2>
-            <div className="max-h-48 overflow-y-auto">
+          <CardContent className="p-6">
+            <h2 className="font-bold mb-4 text-xl">QR Verification Monitor</h2>
+            <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-gray-900">
                   <tr className="text-gray-400 text-left border-b border-gray-700">
-                    <th className="pb-2 pr-2">Document</th>
-                    <th className="pb-2 pr-2">Method</th>
-                    <th className="pb-2 pr-2">Date</th>
-                    <th className="pb-2 pr-2">Time</th>
-                    <th className="pb-2">Result</th>
+                    <th className="pb-3 pr-3 text-base">Document</th>
+                    <th className="pb-3 pr-3 text-base">Method</th>
+                    <th className="pb-3 pr-3 text-base">Date</th>
+                    <th className="pb-3 pr-3 text-base">Time</th>
+                    <th className="pb-3 text-base">Result</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-4">Loading...</td>
+                      <td colSpan={5} className="text-center py-6 text-base">Loading...</td>
                     </tr>
                   ) : fraudAttempts.length > 0 ? (
-                    fraudAttempts.slice(0, 8).map((attempt: any, index: number) => (
+                    fraudAttempts.slice(0, 12).map((attempt: any, index: number) => (
                       <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/50">
-                        <td className="py-2 pr-2 truncate" title={attempt.DocumentType}>
-                          {attempt.DocumentType?.length > 12 
-                            ? `${attempt.DocumentType.substring(0, 12)}...` 
-                            : attempt.DocumentType || 'Unknown'}
+                        <td className="py-3 pr-3 truncate text-base" title={attempt.DocumentType}>
+                          {attempt.DocumentType?.length > 15 
+                            ? `${attempt.DocumentType.substring(0, 15)}...` 
+                            : attempt.DocumentType || 'Unknown Docu...'}
                         </td>
-                        <td className="py-2 pr-2">
+                        <td className="py-3 pr-3">
                           <span className="px-2 py-1 rounded-full text-xs bg-blue-900 text-blue-300">
-                            {attempt.CheckerMethod || 'QR Scan'}
+                            Scanned QR
                           </span>
                         </td>
-                        <td className="py-2 pr-2">{formatDate(attempt.DateIssued)}</td>
-                        <td className="py-2 pr-2">{attempt.Time || 'N/A'}</td>
-                        <td className="py-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        <td className="py-3 pr-3 text-base">{formatDate(attempt.DateIssued)}</td>
+                        <td className="py-3 pr-3 text-base">{attempt.Time || 'N/A'}</td>
+                        <td className="py-3">
+                          <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                             attempt.Status === 'Valid QR' 
                               ? 'bg-green-900 text-green-300' 
                               : 'bg-red-900 text-red-300'
@@ -221,7 +225,7 @@ const Dashboard: React.FC = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="text-center py-4 text-gray-400">No QR scan attempts found</td>
+                      <td colSpan={5} className="text-center py-6 text-gray-400 text-base">No QR scan attempts found</td>
                     </tr>
                   )}
                 </tbody>

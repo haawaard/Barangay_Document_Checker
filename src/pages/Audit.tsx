@@ -18,19 +18,17 @@ interface LogEntry {
 }
 
 export default function AuditLogs() {
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [now, setNow] = useState(new Date());
+  const [sortField, setSortField] = useState<keyof LogEntry | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  // Update time every second
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
   }, []);
 
   // Fetch audit logs from database
@@ -60,19 +58,6 @@ export default function AuditLogs() {
     }
   };
 
-  const formatDateTime = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }) + ' // ' + date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-  };
-
   const formatTimestamp = (timestamp: string) => {
     try {
       const date = new Date(timestamp);
@@ -90,12 +75,60 @@ export default function AuditLogs() {
     }
   };
 
+  const dateStr = now.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
   // Filter logs based on search term
   const filteredLogs = logs.filter(log => 
     Object.values(log).some(value => 
       value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
+
+  // Sort logs based on current sort field and direction
+  const sortedLogs = [...filteredLogs].sort((a, b) => {
+    if (!sortField) return 0;
+    
+    const aValue = a[sortField];
+    const bValue = b[sortField];
+    
+    // Handle null/undefined values
+    if (aValue === null || aValue === undefined) return 1;
+    if (bValue === null || bValue === undefined) return -1;
+    
+    // Sort based on data type
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+    }
+    
+    const aStr = aValue.toString().toLowerCase();
+    const bStr = bValue.toString().toLowerCase();
+    
+    if (sortDirection === 'asc') {
+      return aStr.localeCompare(bStr);
+    } else {
+      return bStr.localeCompare(aStr);
+    }
+  });
+
+  const handleSort = (field: keyof LogEntry) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   const handleSearch = () => {
     // Search is already handled by the filteredLogs computed value
@@ -104,42 +137,29 @@ export default function AuditLogs() {
 
 return (
     <Layout>
-      {/* Header */}
-      <header className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
-        <nav className="flex gap-6 text-gray-300">
-          <a href="#" className="hover:text-white">About</a>
-          <a href="#" className="text-blue-400">Home</a>
-          <a href="#" className="hover:text-white">Contact</a>
-        </nav>
-        <div className="bg-gray-800 border border-gray-600 rounded px-3 py-2">
-          <span className="text-white text-sm font-mono">{formatDateTime(currentDateTime)}</span>
-        </div>
+      {/* Header with Date/Time Only */}
+      <header className="flex justify-end items-center border-b border-gray-700 pb-4 mb-6">
+        <span className="text-sm">{dateStr} // {timeStr}</span>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col w-full">
-        
-        {/* Search Bar */}
-        <div className="flex items-center gap-2 mb-6 w-full max-w-3xl">
+      <h1 className="text-2xl font-bold mb-6">Audit Logs</h1>
+      
+      {/* Search Bar - Forced Visibility */}
+      <div className="flex items-center gap-2 mb-6 w-full max-w-3xl" style={{backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '8px', borderRadius: '4px'}}>
           <Input
             type="text"
             placeholder="Search audit logs..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-blue-950 text-white border-gray-700 flex-1"
+            style={{minHeight: '40px'}}
           />
           <Button 
             onClick={handleSearch}
             className="bg-blue-700 hover:bg-blue-600"
+            style={{minHeight: '40px', minWidth: '80px'}}
           >
             Search
-          </Button>
-          <Button 
-            onClick={fetchAuditLogs}
-            className="bg-green-700 hover:bg-green-600"
-            disabled={loading}
-          >
-            {loading ? "Loading..." : "Refresh"}
           </Button>
         </div>
 
@@ -169,28 +189,50 @@ return (
                   <th className="px-4 py-2 text-left" colSpan={2}>Security & Status</th>
                 </tr>
                 <tr className="bg-blue-950 text-white">
-                  <th className="px-4 py-2">LogID</th>
-                  <th className="px-4 py-2">Timestamp</th>
-                  <th className="px-4 py-2">ActionType</th>
-                  <th className="px-4 py-2">DocumentID</th>
-                  <th className="px-4 py-2">DocumentType</th>
-                  <th className="px-4 py-2">CheckerMethod</th>
-                  <th className="px-4 py-2">UserID</th>
-                  <th className="px-4 py-2">UserName</th>
-                  <th className="px-4 py-2">UserRole</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2">FailureReason</th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('LogID')}>
+                    LogID
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('Timestamp')}>
+                    Timestamp
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('ActionType')}>
+                    ActionType
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('DocumentID')}>
+                    DocumentID
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('DocumentType')}>
+                    DocumentType
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('CheckerMethod')}>
+                    CheckerMethod
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('UserID')}>
+                    UserID
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('UserName')}>
+                    UserName
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('UserRole')}>
+                    UserRole
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('Status')}>
+                    Status
+                  </th>
+                  <th className="px-4 py-2 cursor-pointer hover:bg-blue-800" onClick={() => handleSort('FailureReason')}>
+                    FailureReason
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.length === 0 ? (
+                {sortedLogs.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                       {searchTerm ? "No audit logs found matching your search." : "No audit logs available."}
                     </td>
                   </tr>
                 ) : (
-                  filteredLogs.map((log) => (
+                  sortedLogs.map((log) => (
                     <tr key={log.LogID} className="border-b border-gray-700 hover:bg-blue-900/30">
                       <td className="px-4 py-2">{log.LogID}</td>
                       <td className="px-4 py-2">{formatTimestamp(log.Timestamp)}</td>
@@ -218,7 +260,6 @@ return (
             </table>
           </div>
         )}
-      </div>
     </Layout>
   );
 }

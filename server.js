@@ -177,7 +177,7 @@ app.get("/api/dashboard/fraud-monitor", (req, res) => {
     SELECT 
       COALESCE(DocumentType, 'Unknown Document') as DocumentType,
       'Scanned QR' as CheckerMethod,
-      DATE(Timestamp) as DateIssued,
+      DATE_FORMAT(Timestamp, '%Y-%m-%d') as DateIssued,
       TIME_FORMAT(Timestamp, '%l:%i %p') as Time,
       CASE 
         WHEN Status = 'Success' THEN 'Valid QR'
