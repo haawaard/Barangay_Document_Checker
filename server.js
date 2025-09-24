@@ -51,14 +51,17 @@ function logAuditEntry(actionType, documentId, documentType, checkerMethod, user
     ) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
-  db.query(query, [
+  const params = [
     actionType, documentId, documentType, checkerMethod, 
     userId, userName, userRole, status, failureReason
-  ], (err, result) => {
+  ];
+  
+  db.query(query, params, (err, result) => {
     if (err) {
-      console.error('Failed to log audit entry:', err);
+      console.error('❌ Failed to log audit entry:', err);
+      console.error('❌ Columns: 10, Placeholders: 9, Params: ' + params.length);
     } else {
-      console.log(`Audit log created: ${actionType} by ${userName} (${userRole}) - Status: ${status}`);
+      console.log(`✅ Audit log created: ${actionType} by ${userName} (${userRole}) - Status: ${status}`);
     }
   });
 }
@@ -501,7 +504,7 @@ app.post("/api/validate-qr", (req, res) => {
       null, 
       null, 
       'QR Upload', 
-      0, 
+      1, 
       'Web User', 
       'Public User', 
       'Failed', 
@@ -563,7 +566,7 @@ app.post("/api/validate-qr", (req, res) => {
         document.clearance_id || document.id, 
         foundResult.type, 
         'QR Upload', 
-        0, 
+        1, 
         'Web User', 
         'Public User', 
         'Success'
@@ -622,7 +625,7 @@ app.post("/api/validate-qr", (req, res) => {
         null, 
         null, 
         'QR Upload', 
-        0, 
+        1, 
         'Web User', 
         'Public User', 
         'Failed', 
@@ -644,7 +647,7 @@ app.post("/api/validate-qr", (req, res) => {
       null, 
       null, 
       'QR Upload', 
-      0, 
+      1, 
       'Web User', 
       'Public User', 
       'Failed', 
