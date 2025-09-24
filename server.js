@@ -93,6 +93,81 @@ app.get("/api/recent-issuance", (req, res) => {
     });
 });
 
+// API endpoint to get total documents count
+app.get("/api/dashboard/total-documents", (req, res) => {
+  const queries = [
+    "SELECT COUNT(*) as count FROM certificate_of_indigency",
+    "SELECT COUNT(*) as count FROM barangay_clearance", 
+    "SELECT COUNT(*) as count FROM business_permit"
+  ];
+
+  Promise.all(queries.map(query => 
+    new Promise((resolve, reject) => {
+      db.query(query, (err, results) => {
+        if (err) reject(err);
+        else resolve(results[0].count);
+      });
+    })
+  ))
+  .then(counts => {
+    const total = counts.reduce((sum, count) => sum + count, 0);
+    res.json({ total });
+  })
+  .catch(err => {
+    console.error("Total documents error:", err);
+    res.status(500).json({ message: "Database error" });
+  });
+});
+
+// API endpoint to get valid documents count and increment
+app.get("/api/dashboard/valid-documents", (req, res) => {
+  const query = "SELECT COUNT(*) as count FROM log_entries WHERE Status = 'Success' AND ActionType = 'QR Verification'";
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Valid documents error:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    res.json({ count: results[0].count });
+  });
+});
+
+// API endpoint to get invalid documents count and increment
+app.get("/api/dashboard/invalid-documents", (req, res) => {
+  const query = "SELECT COUNT(*) as count FROM log_entries WHERE Status = 'Failed' AND ActionType = 'QR Verification'";
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Invalid documents error:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    res.json({ count: results[0].count });
+  });
+});
+
+// API endpoint to get recent issuance from audit logs
+app.get("/api/dashboard/recent-audit-issuance", (req, res) => {
+  const query = `
+    SELECT DocumentType, Timestamp as DateIssued
+    FROM log_entries 
+    WHERE ActionType = 'Document Issuance'
+    ORDER BY Timestamp DESC 
+    LIMIT 10
+  `;
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Recent audit issuance error:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    
+    const formattedResults = results.map(row => ({
+      DocumentType: row.DocumentType,
+      DateIssued: new Date(row.DateIssued).toISOString().split('T')[0] // Format as YYYY-MM-DD
+    }));
+    
+    res.json({ recent: formattedResults });
+  });
+});
+
 // API endpoint for login
 app.post("/api/login", (req, res) => {
   const { name, password } = req.body;
