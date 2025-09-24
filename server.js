@@ -171,6 +171,34 @@ app.get("/api/dashboard/recent-audit-issuance", (req, res) => {
   });
 });
 
+// API endpoint for fraud monitor - QR verification attempts
+app.get("/api/dashboard/fraud-monitor", (req, res) => {
+  const query = `
+    SELECT 
+      COALESCE(DocumentType, 'Unknown Document') as DocumentType,
+      'Scanned QR' as CheckerMethod,
+      DATE(Timestamp) as DateIssued,
+      TIME_FORMAT(Timestamp, '%l:%i %p') as Time,
+      CASE 
+        WHEN Status = 'Success' THEN 'Valid QR'
+        ELSE 'Invalid QR'
+      END as Status
+    FROM log_entries 
+    WHERE ActionType = 'QR Verification'
+    ORDER BY Timestamp DESC
+    LIMIT 20
+  `;
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Fraud monitor error:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    
+    res.json({ fraudAttempts: results });
+  });
+});
+
 // API endpoint for login
 app.post("/api/login", (req, res) => {
   const { name, password } = req.body;
