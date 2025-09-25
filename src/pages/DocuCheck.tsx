@@ -9,7 +9,6 @@ import jsQR from "jsqr";
 export default function PublicDocumentChecker() {
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const fileInputRef = useState<HTMLInputElement | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{
@@ -57,7 +56,6 @@ export default function PublicDocumentChecker() {
       setUploadedImage(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
-      setShowPreview(true);
       setValidationResult(null); // Reset validation result when new file is uploaded
     }
   };
@@ -242,16 +240,24 @@ export default function PublicDocumentChecker() {
     setValidating(false);
   };
 
+  // Function to clear uploaded data and validation results
+  const clearUploadedData = () => {
+    setUploadedImage(null);
+    setPreviewUrl(null);
+    setValidationResult(null);
+    setValidating(false);
+    // Reset file input
+    if (fileInputRef[0]) {
+      fileInputRef[0].value = '';
+    }
+  };
+
   // Cleanup object URL when file changes or component unmounts
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
-
-  const closePreview = () => {
-    setShowPreview(false);
-  };
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -313,16 +319,36 @@ export default function PublicDocumentChecker() {
                 Upload QR
               </Button>
               {uploadedImage && (
-                <div className="flex flex-col items-center gap-2">
-                  <p className="text-green-400">Image uploaded: {uploadedImage.name}</p>
-                  <Button
-                    variant="secondary"
-                    className="bg-green-700 text-white hover:bg-green-600"
-                    onClick={validateQRCode}
-                    disabled={validating}
-                  >
-                    {validating ? "Validating..." : "Validate"}
-                  </Button>
+                <div className="flex flex-col items-center gap-4 w-full">
+                  {/* Display uploaded image directly */}
+                  {previewUrl && (
+                    <div className="w-full max-w-md">
+                      <img
+                        src={previewUrl}
+                        alt="Uploaded QR code"
+                        className="w-full h-auto max-h-64 object-contain rounded-lg border border-gray-600"
+                      />
+                    </div>
+                  )}
+                  <p className="text-green-400 text-sm">Image uploaded: {uploadedImage.name}</p>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="secondary"
+                      className="bg-green-700 text-white hover:bg-green-600 px-6 py-2"
+                      onClick={validateQRCode}
+                      disabled={validating}
+                    >
+                      {validating ? "Validating..." : "Validate QR Code"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="bg-gray-700 text-white hover:bg-gray-600 border-gray-500 px-4 py-2 text-sm"
+                      onClick={clearUploadedData}
+                      disabled={validating}
+                    >
+                      Done
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -357,34 +383,6 @@ export default function PublicDocumentChecker() {
           </Card>
         </div>
       </main>
-
-      {/* Image Preview Modal */}
-      {showPreview && previewUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
-          onClick={closePreview}
-        >
-          <div
-            className="relative bg-gray-900 rounded-xl shadow-xl max-w-3xl w-full p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={closePreview}
-              className="absolute -top-3 -right-3 bg-transparent hover:bg-white/10 text-white rounded-full w-9 h-9 border border-white/40"
-              aria-label="Close preview"
-            >
-              ×
-            </button>
-            <div className="w-full h-full flex items-center justify-center">
-              <img
-                src={previewUrl}
-                alt="Uploaded preview"
-                className="max-h-[80vh] max-w-full object-contain rounded"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

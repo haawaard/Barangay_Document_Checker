@@ -39,8 +39,13 @@ export default function FraudMonitor() {
       const data = await response.json();
       
       if (response.ok) {
-        setFraudAttempts(data.fraudAttempts || []);
-        console.log(`Loaded ${data.fraudAttempts?.length || 0} fraud attempts`);
+        // Filter to only show Invalid QR attempts
+        const invalidQRAttempts = (data.fraudAttempts || []).filter((attempt: any) => 
+          attempt.Status === 'Invalid QR'
+        );
+        
+        setFraudAttempts(invalidQRAttempts);
+        console.log(`Loaded ${invalidQRAttempts.length} invalid QR attempts (filtered from ${data.fraudAttempts?.length || 0} total attempts)`);
       } else {
         setError(data.message || "Failed to fetch fraud attempts");
       }
@@ -133,13 +138,13 @@ export default function FraudMonitor() {
         <span className="text-sm">{dateStr} // {timeStr}</span>
       </header>
 
-      <h1 className="text-2xl font-bold mb-6">Fraud Monitor</h1>
+      <h1 className="text-2xl font-bold mb-6">Fraud Monitor - Invalid QR Attempts</h1>
       
       {/* Search Bar - Forced Visibility */}
       <div className="flex items-center gap-2 mb-6 w-full max-w-3xl" style={{backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '8px', borderRadius: '4px'}}>
           <Input
             type="text"
-            placeholder="Search QR scan attempts..."
+            placeholder="Search invalid QR attempts..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-blue-950 text-white border-gray-700 flex-1"
@@ -157,7 +162,7 @@ export default function FraudMonitor() {
         {/* Loading State */}
         {loading && (
           <div className="text-center py-8 text-gray-400">
-            <p>Loading QR scan attempts...</p>
+            <p>Loading invalid QR attempts...</p>
           </div>
         )}
 
@@ -195,7 +200,7 @@ export default function FraudMonitor() {
                 {sortedFraudAttempts.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                      {searchTerm ? "No QR scan attempts found matching your search." : "No QR scan attempts found"}
+                      {searchTerm ? "No invalid QR attempts found matching your search." : "No invalid QR attempts found"}
                     </td>
                   </tr>
                 ) : (
@@ -209,12 +214,8 @@ export default function FraudMonitor() {
                       <td className="px-4 py-2">{formatDate(attempt.DateIssued)}</td>
                       <td className="px-4 py-2">{attempt.Time}</td>
                       <td className="px-4 py-2">
-                        <span className={`font-semibold ${
-                          attempt.Status === 'Valid QR' 
-                            ? 'text-green-400' 
-                            : 'text-red-400'
-                        }`}>
-                          {attempt.Status}
+                        <span className="font-semibold text-red-400">
+                          ❌ {attempt.Status}
                         </span>
                       </td>
                     </tr>
