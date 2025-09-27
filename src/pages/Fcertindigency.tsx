@@ -394,6 +394,8 @@ Done in the City of Manila, this ${issuedOnPretty || formData.issuedOn}`;
       Purpose: "",
       issuedOn: formattedDate,
     });
+    // Navigate back to issuance page
+    navigate("/issuance");
   };
 
   return (

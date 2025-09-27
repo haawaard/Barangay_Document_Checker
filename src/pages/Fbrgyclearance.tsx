@@ -385,6 +385,8 @@ Issued this ${issuedOnPretty || formData.issuedOn} at Barangay 425 Zone 43 Distr
       Purpose: "",
       issuedOn: formattedDate,
     });
+    // Navigate back to issuance page
+    navigate("/issuance");
   };
 
   return (

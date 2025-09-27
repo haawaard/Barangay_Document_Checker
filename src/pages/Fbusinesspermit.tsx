@@ -375,6 +375,8 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
       Classification: "",
       issuedOn: formattedDate,
     });
+    // Navigate back to issuance page
+    navigate("/issuance");
   };
 
   const handleBack = () => {
