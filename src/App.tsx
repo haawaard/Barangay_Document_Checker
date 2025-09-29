@@ -8,7 +8,6 @@ import Dashboard from "./pages/Dashboard";
 import Issuance from "./pages/Issuance";
 import Audit from "./pages/Audit";
 import Fraud from "./pages/Fraud";
-import Temp from "./pages/temp";
 import BarangayClearanceForm from "./pages/Fbrgyclearance";
 import BusinessPermit from "./pages/Fbusinesspermit";
 import CertIndigency from "./pages/Fcertindigency";
@@ -57,10 +56,6 @@ function App() {
 
         {/* FORMS: cert of indigency */}
         <Route path="/fcertindigency" element={<ProtectedRoute><CertIndigency /></ProtectedRoute>} />
-        
-
-        {/* TEMPORARY PAGE */}
-        <Route path="/temp" element={<Temp />} />
       </Routes>
   );
 }

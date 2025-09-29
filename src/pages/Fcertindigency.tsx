@@ -31,6 +31,11 @@ export default function Fcertindigency() {
   const [noMiddleName, setNoMiddleName] = useState(false);
   const [showReadyToPrint, setShowReadyToPrint] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  
+  // Birth date components
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthDay, setBirthDay] = useState("");
+  const [birthYear, setBirthYear] = useState("");
 
   const fullName = useMemo(() => {
     const parts = [formData.FirstName];
@@ -59,6 +64,73 @@ export default function Fcertindigency() {
     const formattedDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
     setFormData(prev => ({ ...prev, issuedOn: formattedDate }));
   }, []);
+
+  // Month options
+  const monthOptions = [
+    { value: "01", label: "January" },
+    { value: "02", label: "February" },
+    { value: "03", label: "March" },
+    { value: "04", label: "April" },
+    { value: "05", label: "May" },
+    { value: "06", label: "June" },
+    { value: "07", label: "July" },
+    { value: "08", label: "August" },
+    { value: "09", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" }
+  ];
+
+  // Day options (1-31)
+  const dayOptions = Array.from({ length: 31 }, (_, i) => {
+    const day = (i + 1).toString().padStart(2, '0');
+    return { value: day, label: day };
+  });
+
+  // Year options (current year - 100 to current year)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 101 }, (_, i) => {
+    const year = currentYear - i;
+    return { value: year.toString(), label: year.toString() };
+  });
+
+  // Handle birth date component changes
+  const handleBirthDateChange = (component: 'month' | 'day' | 'year', value: string) => {
+    if (component === 'month') {
+      setBirthMonth(value);
+    } else if (component === 'day') {
+      setBirthDay(value);
+    } else if (component === 'year') {
+      setBirthYear(value);
+    }
+
+    // Get current values
+    const currentMonth = component === 'month' ? value : birthMonth;
+    const currentDay = component === 'day' ? value : birthDay;
+    const currentYear = component === 'year' ? value : birthYear;
+
+    // If all components are filled, create the birthdate and calculate age
+    if (currentMonth && currentDay && currentYear) {
+      const birthdate = `${currentYear}-${currentMonth}-${currentDay}`;
+      const birthDateObj = new Date(birthdate);
+      const today = new Date();
+      let age = today.getFullYear() - birthDateObj.getFullYear();
+      const m = today.getMonth() - birthDateObj.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
+        age--;
+      }
+      setFormData((prev) => ({ ...prev, Birthdate: birthdate, Age: age.toString() }));
+    }
+  };
+
+  // Format selected birthdate for display
+  const formatSelectedBirthdate = () => {
+    if (birthMonth && birthDay && birthYear) {
+      const monthName = monthOptions.find(m => m.value === birthMonth)?.label;
+      return `Selected: ${monthName} ${birthDay}, ${birthYear}`;
+    }
+    return null;
+  };
 
   // PDF generation is now triggered only in Ready-to-Print modal
 
@@ -261,16 +333,6 @@ Done in the City of Manila, this ${issuedOnPretty || formData.issuedOn}`;
       if (checked) {
         setFormData((prev) => ({ ...prev, MiddleName: "" }));
       }
-    } else if (name === "Birthdate") {
-      // Calculate age from birthdate
-      const birthDateObj = new Date(value);
-      const today = new Date();
-      let age = today.getFullYear() - birthDateObj.getFullYear();
-      const m = today.getMonth() - birthDateObj.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
-        age--;
-      }
-      setFormData((prev) => ({ ...prev, Birthdate: value, Age: age.toString() }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -380,6 +442,9 @@ Done in the City of Manila, this ${issuedOnPretty || formData.issuedOn}`;
     setNoMiddleName(false);
     setPdfUrl(null);
     setQrCodeUrl(null);
+    setBirthMonth("");
+    setBirthDay("");
+    setBirthYear("");
     const today = new Date();
     const formattedDate = today.toISOString().split('T')[0];
     setFormData({
@@ -474,13 +539,49 @@ Done in the City of Manila, this ${issuedOnPretty || formData.issuedOn}`;
         {/* Birthdate */}
         <div className="mb-4">
           <label className="block font-semibold mb-1">Birthdate</label>
-          <input
-            type="date"
-            name="Birthdate"
-            value={formData.Birthdate}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
+          <div className="grid grid-cols-3 gap-2">
+            <select
+              value={birthMonth}
+              onChange={(e) => handleBirthDateChange('month', e.target.value)}
+              className="px-3 py-2 rounded bg-gray-800 text-gray-300"
+            >
+              <option value="">Month</option>
+              {monthOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={birthDay}
+              onChange={(e) => handleBirthDateChange('day', e.target.value)}
+              className="px-3 py-2 rounded bg-gray-800 text-gray-300"
+            >
+              <option value="">Day</option>
+              {dayOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={birthYear}
+              onChange={(e) => handleBirthDateChange('year', e.target.value)}
+              className="px-3 py-2 rounded bg-gray-800 text-gray-300"
+            >
+              <option value="">Year</option>
+              {yearOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {formatSelectedBirthdate() && (
+            <div className="mt-2 text-green-400 text-sm">
+              {formatSelectedBirthdate()}
+            </div>
+          )}
         </div>
 
         {/* Contact Number */}

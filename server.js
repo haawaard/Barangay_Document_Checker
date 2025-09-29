@@ -43,23 +43,23 @@ function formatDate(dateInput) {
 }
 
 // Helper function to log audit entries
-function logAuditEntry(actionType, documentId, documentType, checkerMethod, userId, userName, userRole, status, failureReason = 'N/A') {
+function logAuditEntry(actionType, documentId, documentType, checkerMethod, userId, userName, userRole, status, failureReason = 'N/A', details = null) {
   const query = `
     INSERT INTO log_entries (
       Timestamp, ActionType, DocumentID, DocumentType, CheckerMethod, 
-      UserID, UserName, UserRole, Status, FailureReason
-    ) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      UserID, UserName, UserRole, Status, FailureReason, Details
+    ) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
   const params = [
     actionType, documentId, documentType, checkerMethod, 
-    userId, userName, userRole, status, failureReason
+    userId, userName, userRole, status, failureReason, details
   ];
   
   db.query(query, params, (err, result) => {
     if (err) {
       console.error('❌ Failed to log audit entry:', err);
-      console.error('❌ Columns: 10, Placeholders: 9, Params: ' + params.length);
+      console.error('❌ Columns: 11, Placeholders: 10, Params: ' + params.length);
     } else {
       console.log(`✅ Audit log created: ${actionType} by ${userName} (${userRole}) - Status: ${status}`);
     }
@@ -196,6 +196,99 @@ app.get("/api/dashboard/fraud-monitor", (req, res) => {
     }
     
     res.json({ fraudAttempts: results });
+  });
+});
+
+// API endpoint for enhanced invalid QR monitor - tracks unique QR codes and scan counts
+app.get("/api/dashboard/invalid-qr-monitor", (req, res) => {
+  // First, check if Details column exists in log_entries table
+  const checkColumnQuery = `
+    SELECT COLUMN_NAME 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'log_entries' 
+      AND COLUMN_NAME = 'Details'
+  `;
+  
+  db.query(checkColumnQuery, (err, columnResults) => {
+    if (err) {
+      console.error("Error checking Details column:", err);
+      return res.status(500).json({ message: "Database error checking table structure" });
+    }
+    
+    const hasDetailsColumn = columnResults.length > 0;
+    
+    let query;
+    if (hasDetailsColumn) {
+      // Use the enhanced query with Details column
+      query = `
+        SELECT 
+          Details as qrHash,
+          COUNT(*) as scanCount,
+          MIN(DATE_FORMAT(Timestamp, '%Y-%m-%d')) as firstScanDate,
+          MAX(DATE_FORMAT(Timestamp, '%Y-%m-%d')) as lastScanDate,
+          TIME_FORMAT(MAX(Timestamp), '%l:%i %p') as lastScanTime,
+          CASE 
+            WHEN COUNT(*) > 3 THEN true
+            ELSE false
+          END as isSuspicious,
+          'QR Scanner' as checkerMethod
+        FROM log_entries 
+        WHERE ActionType = 'QR Verification' 
+          AND Status = 'Failed'
+          AND Details IS NOT NULL
+          AND Details != ''
+        GROUP BY Details
+        ORDER BY scanCount DESC, MAX(Timestamp) DESC
+        LIMIT 50
+      `;
+    } else {
+      // Fallback query without Details column - use FailureReason as identifier
+      query = `
+        SELECT 
+          CONCAT('Unknown-QR-', ROW_NUMBER() OVER (ORDER BY MIN(Timestamp))) as qrHash,
+          COUNT(*) as scanCount,
+          MIN(DATE_FORMAT(Timestamp, '%Y-%m-%d')) as firstScanDate,
+          MAX(DATE_FORMAT(Timestamp, '%Y-%m-%d')) as lastScanDate,
+          TIME_FORMAT(MAX(Timestamp), '%l:%i %p') as lastScanTime,
+          CASE 
+            WHEN COUNT(*) > 3 THEN true
+            ELSE false
+          END as isSuspicious,
+          'QR Scanner' as checkerMethod
+        FROM log_entries 
+        WHERE ActionType = 'QR Verification' 
+          AND Status = 'Failed'
+        GROUP BY DATE_FORMAT(Timestamp, '%Y-%m-%d %H:%i'), FailureReason
+        ORDER BY scanCount DESC, MAX(Timestamp) DESC
+        LIMIT 50
+      `;
+    }
+    
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error("Invalid QR monitor error:", err);
+        return res.status(500).json({ message: "Database error" });
+      }
+      
+      // Convert MySQL boolean results to actual booleans
+      const processedResults = results.map(result => ({
+        ...result,
+        isSuspicious: result.isSuspicious === 1 || result.isSuspicious === true
+      }));
+      
+      console.log(`Found ${processedResults.length} unique invalid QR codes (Details column: ${hasDetailsColumn ? 'available' : 'missing'})`);
+      
+      if (!hasDetailsColumn && processedResults.length === 0) {
+        // If no Details column and no data, show a helpful message
+        res.json({ 
+          invalidQRAttempts: [], 
+          message: "Database migration required. Please run: mysql -u root -p barangay_db < database_migration_add_details.sql" 
+        });
+      } else {
+        res.json({ invalidQRAttempts: processedResults });
+      }
+    });
   });
 });
 
@@ -536,7 +629,8 @@ app.post("/api/validate-qr", (req, res) => {
       'Web User', 
       'Public User', 
       'Failed', 
-      'No hash provided'
+      'No hash provided',
+      null // No hash to store
     );
     
     return res.status(400).json({ 
@@ -647,7 +741,7 @@ app.post("/api/validate-qr", (req, res) => {
     } else {
       console.log("Hash not found in any table");
       
-      // Log failed QR verification
+      // Log failed QR verification with QR hash in details
       logAuditEntry(
         'QR Verification', 
         null, 
@@ -657,7 +751,8 @@ app.post("/api/validate-qr", (req, res) => {
         'Web User', 
         'Public User', 
         'Failed', 
-        'Hash not found in database'
+        'Hash not found in database',
+        hash // Store the QR hash in details for fraud monitoring
       );
       
       res.json({
@@ -669,7 +764,7 @@ app.post("/api/validate-qr", (req, res) => {
   .catch((error) => {
     console.error("Database validation error:", error);
     
-    // Log failed QR verification due to error
+    // Log failed QR verification due to error with hash details
     logAuditEntry(
       'QR Verification', 
       null, 
@@ -679,7 +774,8 @@ app.post("/api/validate-qr", (req, res) => {
       'Web User', 
       'Public User', 
       'Failed', 
-      'Database error during validation'
+      'Database error during validation',
+      hash // Store the QR hash in details for fraud monitoring
     );
     
     res.status(500).json({
@@ -721,186 +817,7 @@ app.get("/api/audit-logs", (req, res) => {
   });
 });
 
-// Test endpoint to verify QR validation logging is working
-app.post("/api/test-qr-logging", (req, res) => {
-  const { scenario } = req.body;
-  
-  switch (scenario) {
-    case 'missing_hash':
-      logAuditEntry(
-        'QR Verification', 
-        null, 
-        null, 
-        'QR Upload', 
-        0, 
-        'Web User', 
-        'Public User', 
-        'Failed', 
-        'No hash provided'
-      );
-      res.json({ message: 'Logged: Missing hash scenario' });
-      break;
-      
-    case 'invalid_hash':
-      logAuditEntry(
-        'QR Verification', 
-        null, 
-        null, 
-        'QR Upload', 
-        0, 
-        'Web User', 
-        'Public User', 
-        'Failed', 
-        'Hash not found in database'
-      );
-      res.json({ message: 'Logged: Invalid hash scenario' });
-      break;
-      
-    case 'valid_clearance':
-      logAuditEntry(
-        'QR Verification', 
-        12345, 
-        'Barangay Clearance', 
-        'QR Upload', 
-        0, 
-        'Web User', 
-        'Public User', 
-        'Success'
-      );
-      res.json({ message: 'Logged: Valid clearance verification' });
-      break;
-      
-    case 'database_error':
-      logAuditEntry(
-        'QR Verification', 
-        null, 
-        null, 
-        'QR Upload', 
-        0, 
-        'Web User', 
-        'Public User', 
-        'Failed', 
-        'Database connection error'
-      );
-      res.json({ message: 'Logged: Database error scenario' });
-      break;
-      
-    default:
-      res.status(400).json({ message: 'Invalid scenario' });
-  }
-});
-
-// API endpoint to create sample audit log entries (for testing)
-app.post("/api/create-sample-logs", (req, res) => {
-  const sampleLogs = [
-    {
-      actionType: 'Login',
-      documentId: null,
-      documentType: null,
-      checkerMethod: null,
-      userId: 1,
-      userName: 'Admin User',
-      userRole: 'Barangay Official',
-      status: 'Success',
-      failureReason: 'N/A'
-    },
-    {
-      actionType: 'Document Issuance',
-      documentId: 1001,
-      documentType: 'Barangay Clearance',
-      checkerMethod: 'System',
-      userId: 1,
-      userName: 'Admin User',
-      userRole: 'Barangay Official',
-      status: 'Success',
-      failureReason: 'N/A'
-    },
-    {
-      actionType: 'QR Verification',
-      documentId: 1001,
-      documentType: 'Barangay Clearance',
-      checkerMethod: 'QR Upload',
-      userId: 0,
-      userName: 'Web User',
-      userRole: 'Public User',
-      status: 'Success',
-      failureReason: 'N/A'
-    },
-    {
-      actionType: 'Login',
-      documentId: null,
-      documentType: null,
-      checkerMethod: null,
-      userId: 0,
-      userName: 'Invalid User',
-      userRole: 'Unknown',
-      status: 'Failed',
-      failureReason: 'Invalid Credentials'
-    }
-  ];
-
-  let completedLogs = 0;
-  const totalLogs = sampleLogs.length;
-
-  sampleLogs.forEach(log => {
-    logAuditEntry(
-      log.actionType,
-      log.documentId,
-      log.documentType,
-      log.checkerMethod,
-      log.userId,
-      log.userName,
-      log.userRole,
-      log.status,
-      log.failureReason
-    );
-    
-    completedLogs++;
-    if (completedLogs === totalLogs) {
-      res.json({ 
-        message: `Created ${totalLogs} sample audit log entries successfully`,
-        logs: sampleLogs 
-      });
-    }
-  });
-});
-
-// Audit summary endpoint to show logging statistics
-app.get("/api/audit-summary", (req, res) => {
-  const query = `
-    SELECT 
-      action_type,
-      status,
-      COUNT(*) as count
-    FROM log_entries 
-    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOURS)
-    GROUP BY action_type, status
-    ORDER BY action_type, status
-  `;
-  
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error("Error fetching audit summary:", err);
-      return res.status(500).json({ 
-        message: "Database error",
-        summary: [
-          { action_type: "Login", status: "Success", count: 5 },
-          { action_type: "Login", status: "Failed", count: 2 },
-          { action_type: "Document Issuance", status: "Success", count: 12 },
-          { action_type: "QR Verification", status: "Success", count: 8 },
-          { action_type: "QR Verification", status: "Failed", count: 3 }
-        ]
-      });
-    }
-    
-    res.json({
-      message: "Audit summary for last 24 hours",
-      summary: results
-    });
-  });
-});
-
-// start server
+// Start server
 app.listen(PORT, () => {
-console.log(` Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });

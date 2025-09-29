@@ -32,6 +32,11 @@ export default function Fbrgyclearance() {
   const [showReadyToPrint, setShowReadyToPrint] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
+  // Separate birth date components for better UX
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthDay, setBirthDay] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+
   const fullName = useMemo(() => {
     const parts = [formData.FirstName];
     if (!noMiddleName && formData.MiddleName) {
@@ -74,20 +79,70 @@ export default function Fbrgyclearance() {
       if (checked) {
         setFormData((prev) => ({ ...prev, MiddleName: "" }));
       }
-    } else if (name === "Birthdate") {
-      // Calculate age from birthdate
-      const birthDateObj = new Date(value);
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  // Handle birth date component changes
+  const handleBirthDateChange = (component: 'month' | 'day' | 'year', value: string) => {
+    let newMonth = birthMonth;
+    let newDay = birthDay;
+    let newYear = birthYear;
+
+    if (component === 'month') {
+      setBirthMonth(value);
+      newMonth = value;
+    } else if (component === 'day') {
+      setBirthDay(value);
+      newDay = value;
+    } else if (component === 'year') {
+      setBirthYear(value);
+      newYear = value;
+    }
+
+    // Update birthdate and calculate age when all components are filled
+    if (newMonth && newDay && newYear) {
+      const birthDateStr = `${newYear}-${newMonth.padStart(2, '0')}-${newDay.padStart(2, '0')}`;
+      const birthDateObj = new Date(birthDateStr);
       const today = new Date();
       let age = today.getFullYear() - birthDateObj.getFullYear();
       const m = today.getMonth() - birthDateObj.getMonth();
       if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
         age--;
       }
-      setFormData((prev) => ({ ...prev, Birthdate: value, Age: age.toString() }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, Birthdate: birthDateStr, Age: age.toString() }));
     }
   };
+
+  // Generate month options
+  const monthOptions = [
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' }
+  ];
+
+  // Generate day options (1-31)
+  const dayOptions = Array.from({ length: 31 }, (_, i) => ({
+    value: (i + 1).toString(),
+    label: (i + 1).toString()
+  }));
+
+  // Generate year options (current year - 100 to current year)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 101 }, (_, i) => ({
+    value: (currentYear - i).toString(),
+    label: (currentYear - i).toString()
+  }));
 
   // Generate QR code for hash code
   const generateQRCode = async (text: string): Promise<string> => {
@@ -385,6 +440,13 @@ Issued this ${issuedOnPretty || formData.issuedOn} at Barangay 425 Zone 43 Distr
       Purpose: "",
       issuedOn: formattedDate,
     });
+    
+    // Reset birth date components
+    setBirthMonth("");
+    setBirthDay("");
+    setBirthYear("");
+    setNoMiddleName(false);
+    
     // Navigate back to issuance page
     navigate("/issuance");
   };
@@ -464,14 +526,50 @@ Issued this ${issuedOnPretty || formData.issuedOn} at Barangay 425 Zone 43 Distr
 
         {/* Birthdate */}
         <div className="mb-4">
-          <label className="block font-semibold mb-1">Birthdate</label>
-          <input
-            type="date"
-            name="Birthdate"
-            value={formData.Birthdate}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
+          <label className="block font-semibold mb-2">Birthdate</label>
+          <div className="grid grid-cols-3 gap-3">
+            <select
+              value={birthMonth}
+              onChange={(e) => handleBirthDateChange('month', e.target.value)}
+              className="px-3 py-2 rounded bg-gray-800 text-gray-300 focus:bg-gray-700 focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option value="">Month</option>
+              {monthOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={birthDay}
+              onChange={(e) => handleBirthDateChange('day', e.target.value)}
+              className="px-3 py-2 rounded bg-gray-800 text-gray-300 focus:bg-gray-700 focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option value="">Day</option>
+              {dayOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={birthYear}
+              onChange={(e) => handleBirthDateChange('year', e.target.value)}
+              className="px-3 py-2 rounded bg-gray-800 text-gray-300 focus:bg-gray-700 focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option value="">Year</option>
+              {yearOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {formData.Birthdate && (
+            <div className="mt-2 text-green-400 text-sm font-medium">
+              Selected: {monthOptions.find(m => m.value === birthMonth)?.label} {birthDay}, {birthYear}
+            </div>
+          )}
         </div>
 
         {/* Contact Number */}

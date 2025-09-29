@@ -22,6 +22,11 @@ export default function Fbrgyclearance() {
     issuedOn: "",
   });
 
+  // Separate birth date components for better UX
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthDay, setBirthDay] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [noMiddleName, setNoMiddleName] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "preview">("details");
   const [showResult, setShowResult] = useState(false);
@@ -32,7 +37,6 @@ export default function Fbrgyclearance() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
-  const [noMiddleName, setNoMiddleName] = useState(false);
   const [showReadyToPrint, setShowReadyToPrint] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
@@ -375,6 +379,13 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
       Classification: "",
       issuedOn: formattedDate,
     });
+    
+    // Reset birth date components
+    setBirthMonth("");
+    setBirthDay("");
+    setBirthYear("");
+    setNoMiddleName(false);
+    
     // Navigate back to issuance page
     navigate("/issuance");
   };
@@ -393,20 +404,70 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
       if (checked) {
         setFormData((prev) => ({ ...prev, MiddleName: "" }));
       }
-    } else if (name === "Birthdate") {
-      // Calculate age from birthdate
-      const birthDateObj = new Date(value);
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  // Handle birth date component changes
+  const handleBirthDateChange = (component: 'month' | 'day' | 'year', value: string) => {
+    let newMonth = birthMonth;
+    let newDay = birthDay;
+    let newYear = birthYear;
+
+    if (component === 'month') {
+      setBirthMonth(value);
+      newMonth = value;
+    } else if (component === 'day') {
+      setBirthDay(value);
+      newDay = value;
+    } else if (component === 'year') {
+      setBirthYear(value);
+      newYear = value;
+    }
+
+    // Update birthdate and calculate age when all components are filled
+    if (newMonth && newDay && newYear) {
+      const birthDateStr = `${newYear}-${newMonth.padStart(2, '0')}-${newDay.padStart(2, '0')}`;
+      const birthDateObj = new Date(birthDateStr);
       const today = new Date();
       let age = today.getFullYear() - birthDateObj.getFullYear();
       const m = today.getMonth() - birthDateObj.getMonth();
       if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
         age--;
       }
-      setFormData((prev) => ({ ...prev, Birthdate: value, Age: age.toString() }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, Birthdate: birthDateStr, Age: age.toString() }));
     }
   };
+
+  // Generate month options
+  const monthOptions = [
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' }
+  ];
+
+  // Generate day options (1-31)
+  const dayOptions = Array.from({ length: 31 }, (_, i) => ({
+    value: (i + 1).toString(),
+    label: (i + 1).toString()
+  }));
+
+  // Generate year options (current year - 100 to current year)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 101 }, (_, i) => ({
+    value: (currentYear - i).toString(),
+    label: (currentYear - i).toString()
+  }));
 
   return (
     <div className="p-6 bg-black min-h-screen text-white">
@@ -483,14 +544,62 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
 
         {/* Birthdate */}
         <div className="mb-4">
-          <label className="block font-semibold mb-1">Birthdate</label>
-          <input
-            type="date"
-            name="Birthdate"
-            value={formData.Birthdate}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
+          <label className="block font-semibold mb-2">Birthdate</label>
+          <div className="grid grid-cols-3 gap-3">
+            {/* Month Dropdown */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Month</label>
+              <select
+                value={birthMonth}
+                onChange={(e) => handleBirthDateChange('month', e.target.value)}
+                className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Select Month</option>
+                {monthOptions.map(month => (
+                  <option key={month.value} value={month.value}>{month.label}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Day Dropdown */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Day</label>
+              <select
+                value={birthDay}
+                onChange={(e) => handleBirthDateChange('day', e.target.value)}
+                className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Select Day</option>
+                {dayOptions.map(day => (
+                  <option key={day.value} value={day.value}>{day.label}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Year Dropdown */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Year</label>
+              <select
+                value={birthYear}
+                onChange={(e) => handleBirthDateChange('year', e.target.value)}
+                className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Select Year</option>
+                {yearOptions.map(year => (
+                  <option key={year.value} value={year.value}>{year.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {formData.Birthdate && (
+            <div className="mt-2 text-sm text-green-400">
+              Selected: {new Date(formData.Birthdate).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </div>
+          )}
         </div>
 
         {/* Contact Number */}

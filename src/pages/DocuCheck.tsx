@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -8,7 +8,7 @@ import jsQR from "jsqr";
 
 export default function PublicDocumentChecker() {
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
-  const fileInputRef = useState<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{
@@ -18,36 +18,31 @@ export default function PublicDocumentChecker() {
   } | null>(null);
   const navigate = useNavigate();
 
-  // Helper function to format dates for display
+  // Format dates for display
   const formatDateDisplay = (dateInput: string | null | undefined): string => {
     if (!dateInput) return "N/A";
     
-    // If it's already in a readable format, return as is
+    // If it's already in readable format, return as is
     if (!dateInput.includes('T') && !dateInput.includes('Z')) {
       return dateInput;
     }
     
     try {
       const date = new Date(dateInput);
-      const options: Intl.DateTimeFormatOptions = { 
+      return date.toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric'
-      };
-      return date.toLocaleDateString('en-US', options);
+      });
     } catch {
-      return dateInput; // Return original if parsing fails
+      return dateInput;
     }
   };
 
-  const handleBrgyLogin = () => {
-    navigate("/login");
-  };
+  const handleBrgyLogin = () => navigate("/login");
 
   const handleUploadClick = () => {
-    if (fileInputRef[0]) {
-      fileInputRef[0].click();
-    }
+    fileInputRef.current?.click();
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,58 +166,13 @@ export default function PublicDocumentChecker() {
       } catch (networkError) {
         console.error('Network error during QR validation:', networkError);
         
-        // Check if it's a network connectivity issue
+        // Handle network connectivity issues
         if (networkError instanceof Error && networkError.name === 'TypeError' && networkError.message.includes('fetch')) {
-          // If backend API is not available, use temporary mock validation
-          console.log('Backend API not available. Using temporary mock validation...');
-          
-          // Temporary mock database for testing (remove when MySQL is set up)
-          const mockDatabase = [
-            {
-              hash: "db8237d31e7ce91969940bd1e3967001",
-              type: "Barangay Clearance",
-              name: "John M Doe",
-              address: "McArthur Highway corner Aguas Street, Balibago",
-              purpose: "School Requirement",
-              issuedOn: "September 22, 2025"
-            },
-            {
-              hash: "b5e2ec106a20c84d73644aae05babf2e",
-              type: "Certificate of Indigency",
-              name: "Jane Smith",
-              address: "Sample Address",
-              purpose: "Medical Assistance",
-              issuedOn: "September 20, 2025"
-            }
-          ];
-          
-          const foundDocument = mockDatabase.find(doc => 
-            qrHash.toLowerCase().includes(doc.hash.toLowerCase()) || 
-            doc.hash.toLowerCase().includes(qrHash.toLowerCase())
-          );
-          
-          if (foundDocument) {
-            setValidationResult({
-              isValid: true,
-              message: `✅ Document Verified! ${foundDocument.type} is valid (OFFLINE MODE - Backend unavailable).`,
-              documentInfo: {
-                id: foundDocument.hash.substring(0, 8).toUpperCase(),
-                type: foundDocument.type,
-                name: foundDocument.name,
-                address: foundDocument.address,
-                purpose: foundDocument.purpose,
-                issuedOn: foundDocument.issuedOn,
-                hash: foundDocument.hash
-              }
-            });
-          } else {
-            setValidationResult({
-              isValid: false,
-              message: `❌ Document Not Found: The QR code hash does not match any records in our database.\n\nQR Hash: "${qrHash.substring(0, 32)}..."\n\n⚠️ OFFLINE MODE: Backend server is unavailable. Limited validation only.\n\nTo enable full validation:\n1. Install MySQL Server\n2. Create 'barangay_db' database\n3. Start server with: node server.js\n\nSee DATABASE_SETUP.md for detailed instructions.`
-            });
-          }
+          setValidationResult({
+            isValid: false,
+            message: `❌ Server Unavailable: Unable to connect to the validation server.\n\nQR Hash: "${qrHash.substring(0, 32)}..."\n\nPlease ensure:\n1. Server is running (node server.js)\n2. Database is properly configured\n3. Network connection is stable`
+          });
         } else {
-          // Handle other types of network errors
           setValidationResult({
             isValid: false,
             message: `❌ Network Error: Unable to connect to validation server. Please check your internet connection and try again.\n\nError: ${networkError instanceof Error ? networkError.message : 'Connection failed'}`
@@ -240,15 +190,15 @@ export default function PublicDocumentChecker() {
     setValidating(false);
   };
 
-  // Function to clear uploaded data and validation results
+  // Clear uploaded data and validation results
   const clearUploadedData = () => {
     setUploadedImage(null);
     setPreviewUrl(null);
     setValidationResult(null);
     setValidating(false);
     // Reset file input
-    if (fileInputRef[0]) {
-      fileInputRef[0].value = '';
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -407,7 +357,7 @@ export default function PublicDocumentChecker() {
                 type="file"
                 accept="image/*"
                 style={{ display: "none" }}
-                ref={el => (fileInputRef[1](el))}
+                ref={fileInputRef}
                 onChange={handleFileChange}
               />
               
