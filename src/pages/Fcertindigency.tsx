@@ -789,11 +789,34 @@ Done in the City of Manila, this ${issuedOnPretty || formData.issuedOn}`;
           {/* Validation Notice */}
           {showValidationNotice && (
             <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-500/50 rounded-lg animate-pulse">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-yellow-400 rounded-full flex-shrink-0"></div>
-                <div>
-                  <p className="text-yellow-200 font-medium text-sm">Please complete all required fields</p>
-                  <p className="text-yellow-300/80 text-xs mt-1">Fields marked with * are required before submission</p>
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <span className="text-yellow-400 text-xl">⚠️</span>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-300">Incomplete Form</h3>
+                  <div className="mt-2 text-sm text-yellow-200">
+                    {formValidationError}
+                  </div>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded transition-colors"
+                      onClick={() => setShowValidationNotice(false)}
+                    >
+                      Got it
+                    </button>
+                  </div>
+                </div>
+                <div className="ml-auto flex-shrink-0">
+                  <button
+                    type="button"
+                    className="text-yellow-400 hover:text-yellow-300"
+                    onClick={() => setShowValidationNotice(false)}
+                  >
+                    <span className="sr-only">Close</span>
+                    ×
+                  </button>
                 </div>
               </div>
             </div>

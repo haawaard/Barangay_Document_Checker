@@ -468,21 +468,21 @@ export default function PublicDocumentChecker() {
                     animate={{ opacity: 1, height: 'auto' }}
                     transition={{ duration: 0.3, delay: 0.2 }}
                   >
-                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                    <h4 className="font-semibold text-white mb-3 flex items-center justify-center gap-2">
                       📋 Document Details
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">ID:</span>
-                        <span className="font-mono text-blue-300">{validationResult.documentInfo.id}</span>
+                    <div className="space-y-3 text-sm max-w-xs mx-auto">
+                      <div className="flex items-center">
+                        <span className="text-gray-400 w-16">ID:</span>
+                        <span className="font-mono text-blue-300 ml-4">{validationResult.documentInfo.id}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Type:</span>
-                        <span className="text-green-300 font-medium">{validationResult.documentInfo.type}</span>
+                      <div className="flex items-center">
+                        <span className="text-gray-400 w-16">Type:</span>
+                        <span className="text-green-300 font-medium ml-4">{validationResult.documentInfo.type}</span>
                       </div>
-                      <div className="flex justify-between md:col-span-2">
-                        <span className="text-gray-400">Issued:</span>
-                        <span className="text-purple-300">{formatDateDisplay(validationResult.documentInfo.issuedOn)}</span>
+                      <div className="flex items-center">
+                        <span className="text-gray-400 w-16">Issued:</span>
+                        <span className="text-purple-300 ml-4">{formatDateDisplay(validationResult.documentInfo.issuedOn)}</span>
                       </div>
                     </div>
                   </motion.div>

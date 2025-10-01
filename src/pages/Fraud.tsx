@@ -165,7 +165,7 @@ export default function FraudMonitor() {
                 <th className="px-4 py-2 text-left cursor-pointer hover:bg-blue-800" onClick={() => handleSort('qrHash')}>
                   QR Code Hash
                 </th>
-                <th className="px-4 py-2 text-left cursor-pointer hover:bg-blue-800" onClick={() => handleSort('scanCount')}>
+                <th className="px-4 py-2 text-center cursor-pointer hover:bg-blue-800" onClick={() => handleSort('scanCount')}>
                   Scan Count
                 </th>
                 <th className="px-4 py-2 text-left cursor-pointer hover:bg-blue-800" onClick={() => handleSort('firstScanDate')}>
