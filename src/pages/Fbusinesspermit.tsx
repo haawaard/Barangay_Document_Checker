@@ -26,7 +26,6 @@ export default function Fbrgyclearance() {
   const [birthMonth, setBirthMonth] = useState("");
   const [birthDay, setBirthDay] = useState("");
   const [birthYear, setBirthYear] = useState("");
-  const [noMiddleName, setNoMiddleName] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "preview">("details");
   const [showResult, setShowResult] = useState(false);
@@ -39,17 +38,26 @@ export default function Fbrgyclearance() {
   const [genError, setGenError] = useState<string | null>(null);
   const [showReadyToPrint, setShowReadyToPrint] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  
+  // Contact number validation state
+  const [contactError, setContactError] = useState("");
+  
+  // Form validation state
+  const [formValidationError, setFormValidationError] = useState("");
+  
+  // Validation notice state for incomplete form
+  const [showValidationNotice, setShowValidationNotice] = useState(false);
 
   const fullName = useMemo(() => {
     const parts = [formData.FirstName];
-    if (!noMiddleName && formData.MiddleName) {
-      parts.push(formData.MiddleName);
+    if (formData.MiddleName && formData.MiddleName.trim()) {
+      parts.push(formData.MiddleName.trim());
     }
     if (formData.LastName) {
       parts.push(formData.LastName);
     }
     return parts.filter(Boolean).join(" ");
-  }, [formData.FirstName, formData.MiddleName, formData.LastName, noMiddleName]);
+  }, [formData.FirstName, formData.MiddleName, formData.LastName]);
 
   const issuedOnPretty = useMemo(() => {
     if (!formData.issuedOn) return "";
@@ -258,14 +266,40 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
   };
 
   const submitToServer = async () => {
+    // Double-check validation before submitting
+    if (!validateForm()) {
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError(null);
+    setFormValidationError('');
+    
     try {
       console.log('Submitting form data:', formData);
+      
+      // Prepare clean form data for submission
+      const calculatedAge = getCalculatedAge();
+      const submitData = {
+        ...formData,
+        LastName: formData.LastName.trim(),
+        FirstName: formData.FirstName.trim(),
+        MiddleName: formData.MiddleName ? formData.MiddleName.trim() : '',
+        Address: formData.Address.trim(),
+        ContactNumber: formData.ContactNumber.trim(),
+        Gender: formData.Gender.trim(),
+        BusinessName: formData.BusinessName.trim(),
+        BusinessAddress: formData.BusinessAddress.trim(),
+        Owner: formData.Owner.trim(),
+        BusinessNature: formData.BusinessNature.trim(),
+        Classification: formData.Classification.trim(),
+        Age: calculatedAge
+      };
+      
       const response = await fetch("http://localhost:5000/api/businesspermit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       });
       
       console.log('Response status:', response.status);
@@ -293,7 +327,16 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
         setShowResult(true);
       } else {
         console.error('Server error response:', data);
-        setSubmitError(data.message || `Server error: ${response.status}`);
+        const serverMessage = data.message || data.error || `Server error: ${response.status}`;
+        
+        // Handle specific server validation errors
+        if (serverMessage.toLowerCase().includes('required') || 
+            serverMessage.toLowerCase().includes('missing') ||
+            serverMessage.toLowerCase().includes('empty')) {
+          setFormValidationError(serverMessage);
+        } else {
+          setSubmitError(serverMessage);
+        }
       }
     } catch (error) {
       console.error('Network error details:', error);
@@ -304,7 +347,23 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
     }
   };
 
-  const handleOpenConfirm = () => { setActiveTab("details"); setShowConfirm(true); };
+  const handleOpenConfirm = () => {
+    setFormValidationError(''); // Clear any previous validation errors
+    setShowValidationNotice(false); // Clear previous notice
+    
+    if (validateForm()) {
+      setActiveTab("details");
+      setShowConfirm(true);
+    } else {
+      // Show validation notice for incomplete form
+      setShowValidationNotice(true);
+      
+      // Auto-hide the notice after 5 seconds
+      setTimeout(() => {
+        setShowValidationNotice(false);
+      }, 5000);
+    }
+  };
   const handleCloseResult = async () => {
     // Download QR code before closing
     if (qrCodeUrl && resultHash) {
@@ -358,9 +417,12 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
     setShowReadyToPrint(false);
     setResultHash(null);
     setResultId(null);
-    setNoMiddleName(false);
     setPdfUrl(null);
     setQrCodeUrl(null);
+    setContactError("");
+    setFormValidationError("");
+    setShowValidationNotice(false);
+    setSubmitError(null);
     const today = new Date();
     const formattedDate = today.toISOString().split('T')[0];
     setFormData({
@@ -384,7 +446,6 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
     setBirthMonth("");
     setBirthDay("");
     setBirthYear("");
-    setNoMiddleName(false);
     
     // Navigate back to issuance page
     navigate("/issuance");
@@ -397,12 +458,26 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, value, checked } = e.target as HTMLInputElement;
+    const { name, value } = e.target;
     
-    if (name === "noMiddleName") {
-      setNoMiddleName(checked);
-      if (checked) {
-        setFormData((prev) => ({ ...prev, MiddleName: "" }));
+    // Special handling for contact number
+    if (name === "ContactNumber") {
+      // Remove any non-digit characters
+      const numericValue = value.replace(/[^0-9]/g, '');
+      
+      // Limit to 11 digits
+      const limitedValue = numericValue.slice(0, 11);
+      
+      // Update form data
+      setFormData((prev) => ({ ...prev, [name]: limitedValue }));
+      
+      // Validate and set error message
+      if (limitedValue.length === 0) {
+        setContactError("");
+      } else if (limitedValue.length < 11) {
+        setContactError(`Contact number must be exactly 11 digits. Current: ${limitedValue.length} digits`);
+      } else if (limitedValue.length === 11) {
+        setContactError("");
       }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -410,34 +485,81 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
   };
 
   // Handle birth date component changes
-  const handleBirthDateChange = (component: 'month' | 'day' | 'year', value: string) => {
-    let newMonth = birthMonth;
-    let newDay = birthDay;
-    let newYear = birthYear;
+  const handleBirthDateChange = (month: string, day: string, year: string) => {
+    if (month && day && year) {
+      const birthdate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      const age = calculateAge(birthdate);
+      setFormData(prev => ({ ...prev, Birthdate: birthdate, Age: age }));
+    } else {
+      setFormData(prev => ({ ...prev, Birthdate: '', Age: '' }));
+    }
+  };
 
-    if (component === 'month') {
-      setBirthMonth(value);
-      newMonth = value;
-    } else if (component === 'day') {
-      setBirthDay(value);
-      newDay = value;
-    } else if (component === 'year') {
-      setBirthYear(value);
-      newYear = value;
+  // Calculate age from birthdate
+  const calculateAge = (birthdate: string) => {
+    if (!birthdate) return '';
+    const today = new Date();
+    const birthDate = new Date(birthdate);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age.toString();
+  };
+
+  // Get calculated age for database
+  const getCalculatedAge = () => {
+    return calculateAge(formData.Birthdate);
+  };
+
+  // Validate form fields
+  const validateForm = () => {
+    const requiredFields = {
+      'Last Name': formData.LastName,
+      'First Name': formData.FirstName,
+      'Address': formData.Address,
+      'Birthdate': formData.Birthdate,
+      'Contact Number': formData.ContactNumber,
+      'Gender': formData.Gender,
+      'Business Name': formData.BusinessName,
+      'Business Address': formData.BusinessAddress,
+      'Owner': formData.Owner,
+      'Business Nature': formData.BusinessNature,
+      'Classification': formData.Classification
+    };
+
+    const emptyFields = Object.entries(requiredFields)
+      .filter(([, value]) => {
+        // More robust validation
+        if (!value) return true; // null, undefined, or empty string
+        if (typeof value !== 'string') return true; // not a string
+        if (value.trim() === '') return true; // only whitespace
+        return false;
+      })
+      .map(([key]) => key);
+
+    if (emptyFields.length > 0) {
+      setFormValidationError(`Please fill in all required fields: ${emptyFields.join(', ')}`);
+      return false;
     }
 
-    // Update birthdate and calculate age when all components are filled
-    if (newMonth && newDay && newYear) {
-      const birthDateStr = `${newYear}-${newMonth.padStart(2, '0')}-${newDay.padStart(2, '0')}`;
-      const birthDateObj = new Date(birthDateStr);
-      const today = new Date();
-      let age = today.getFullYear() - birthDateObj.getFullYear();
-      const m = today.getMonth() - birthDateObj.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDateObj.getDate())) {
-        age--;
-      }
-      setFormData((prev) => ({ ...prev, Birthdate: birthDateStr, Age: age.toString() }));
+    // Check contact number validation error
+    if (contactError && contactError.trim() !== '') {
+      setFormValidationError('Please fix the contact number error before submitting.');
+      return false;
     }
+
+    // Check contact number length
+    if (!formData.ContactNumber || formData.ContactNumber.length !== 11) {
+      setFormValidationError('Contact number must be exactly 11 digits.');
+      return false;
+    }
+
+    setFormValidationError('');
+    return true;
   };
 
   // Generate month options
@@ -470,261 +592,310 @@ Issued this ${issuedOnPretty || formData.issuedOn} in the City of Manila, Philip
   }));
 
   return (
-    <div className="p-6 bg-black min-h-screen text-white">
-      <div className="bg-gray-900 p-6 rounded-2xl shadow-lg">
-        <h1 className="text-3xl font-bold mb-6">Business Permit Form</h1>
-
-        {/* Last Name */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Last Name</label>
-          <input
-            type="text"
-            name="LastName"
-            value={formData.LastName}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-        </div>
-
-        {/* First Name */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">First Name</label>
-          <input
-            type="text"
-            name="FirstName"
-            value={formData.FirstName}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-        </div>
-
-        {/* Middle Name */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Middle Name</label>
-          <input
-            type="text"
-            name="MiddleName"
-            value={formData.MiddleName}
-            onChange={handleChange}
-            disabled={noMiddleName}
-            className={`w-full px-3 py-2 rounded text-gray-300 ${noMiddleName ? 'bg-gray-700 cursor-not-allowed' : 'bg-gray-800'}`}
-          />
-          <div className="flex items-center mt-2">
-            <input
-              type="checkbox"
-              id="noMiddleName"
-              name="noMiddleName"
-              checked={noMiddleName}
-              onChange={handleChange}
-              className="mr-2"
-            />
-            <label htmlFor="noMiddleName" className="text-sm text-gray-400 cursor-pointer">No Middle Name</label>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-white mb-2">Business Permit Form</h1>
+            <p className="text-gray-400 text-sm">Please fill out all required information below</p>
           </div>
-        </div>
 
-        {/* Address */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Address</label>
-          <input
-            type="text"
-            name="Address"
-            value={formData.Address}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-        </div>
+          <div className="space-y-6">
+            {/* Form Validation Error */}
+            {formValidationError && (
+              <div className="p-4 bg-red-500/20 border border-red-400/30 rounded-xl text-red-200 text-sm">
+                {formValidationError}
+              </div>
+            )}
 
-        {/* Age */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Age</label>
-          <div className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300 bg-gray-700 cursor-not-allowed">
-            {formData.Age}
+            {/* Personal Information Section */}
+            <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+              <h2 className="text-xl font-semibold text-white mb-4 border-b border-white/20 pb-2">
+                Personal Information
+              </h2>
+
+              {/* Last Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Last Name *</label>
+                <input
+                  type="text"
+                  name="LastName"
+                  value={formData.LastName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder-gray-500"
+                  placeholder="Enter your last name"
+                />
+              </div>
+
+              {/* First Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">First Name *</label>
+                <input
+                  type="text"
+                  name="FirstName"
+                  value={formData.FirstName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder-gray-500"
+                  placeholder="Enter your first name"
+                />
+              </div>
+
+              {/* Middle Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Middle Name</label>
+                <input
+                  type="text"
+                  name="MiddleName"
+                  value={formData.MiddleName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder-gray-500"
+                  placeholder="Optional"
+                />
+              </div>
+
+              {/* Address */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Address *</label>
+                <input
+                  type="text"
+                  name="Address"
+                  value={formData.Address}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder-gray-500"
+                  placeholder="Enter your complete address"
+                />
+              </div>
+
+              {/* Birthdate */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Birthdate</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <select
+                    value={birthMonth}
+                    onChange={(e) => {
+                      setBirthMonth(e.target.value);
+                      handleBirthDateChange(e.target.value, birthDay, birthYear);
+                    }}
+                    className="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  >
+                    <option value="">Month</option>
+                    {monthOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={birthDay}
+                    onChange={(e) => {
+                      setBirthDay(e.target.value);
+                      handleBirthDateChange(birthMonth, e.target.value, birthYear);
+                    }}
+                    className="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  >
+                    <option value="">Day</option>
+                    {dayOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={birthYear}
+                    onChange={(e) => {
+                      setBirthYear(e.target.value);
+                      handleBirthDateChange(birthMonth, birthDay, e.target.value);
+                    }}
+                    className="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  >
+                    <option value="">Year</option>
+                    {yearOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {formData.Birthdate && (
+                  <div className="mt-3 space-y-1">
+                    <div className="text-green-400 text-sm font-medium">
+                      Selected: {monthOptions.find(m => m.value === birthMonth)?.label} {birthDay}, {birthYear}
+                    </div>
+                    {calculateAge(formData.Birthdate) && (
+                      <div className="text-blue-400 text-sm font-medium">
+                        Age: {calculateAge(formData.Birthdate)} years old
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Contact Number */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Contact Number *</label>
+                <input
+                  type="text"
+                  name="ContactNumber"
+                  value={formData.ContactNumber}
+                  onChange={handleChange}
+                  maxLength={11}
+                  className={`w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border transition-all outline-none placeholder-gray-500 ${
+                    contactError 
+                      ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20' 
+                      : 'border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                  }`}
+                  placeholder="Enter 11-digit contact number (e.g., 09123456789)"
+                />
+                {contactError && (
+                  <p className="mt-2 text-red-400 text-sm">{contactError}</p>
+                )}
+                {formData.ContactNumber && !contactError && formData.ContactNumber.length === 11 && (
+                  <p className="mt-2 text-green-400 text-sm">✓ Valid contact number</p>
+                )}
+                <p className="text-gray-500 text-xs mt-1">Only numbers allowed, exactly 11 digits required</p>
+              </div>
+
+              {/* Gender */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Gender *</label>
+                <select
+                  name="Gender"
+                  value={formData.Gender}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Business Information Section */}
+            <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+              <h2 className="text-xl font-semibold text-white mb-4 border-b border-white/20 pb-2">
+                Business Information
+              </h2>
+
+              {/* Business Name */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Business Name *</label>
+                <input
+                  type="text"
+                  name="BusinessName"
+                  value={formData.BusinessName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder-gray-500"
+                  placeholder="Enter business name"
+                />
+              </div>
+
+              {/* Business Address */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Business Address *</label>
+                <input
+                  type="text"
+                  name="BusinessAddress"
+                  value={formData.BusinessAddress}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder-gray-500"
+                  placeholder="Enter business address"
+                />
+              </div>
+
+              {/* Owner */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Owner *</label>
+                <input
+                  type="text"
+                  name="Owner"
+                  value={formData.Owner}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none placeholder-gray-500"
+                  placeholder="Enter owner/proprietor name"
+                />
+              </div>
+
+              {/* Business Nature */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Nature of Business *</label>
+                <select
+                  name="BusinessNature"
+                  value={formData.BusinessNature}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                >
+                  <option value="">Select Business Nature</option>
+                  <option value="Retail">Retail</option>
+                  <option value="Food Service">Food Service</option>
+                  <option value="Professional Services">Professional Services</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="Construction">Construction</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* Classification */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Classification *</label>
+                <select
+                  name="Classification"
+                  value={formData.Classification}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                >
+                  <option value="">Select Classification</option>
+                  <option value="Single Proprietorship">Single Proprietorship</option>
+                  <option value="Partnership">Partnership</option>
+                  <option value="Corporation">Corporation</option>
+                  <option value="Cooperative">Cooperative</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Issued On */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Issued On</label>
+              <input
+                type="date"
+                name="issuedOn"
+                value={formData.issuedOn}
+                onChange={handleChange}
+                className="w-full px-4 py-3 text-sm rounded-lg bg-gray-900 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+              />
+              <p className="text-gray-500 text-xs mt-1">Automatically set to today's date</p>
+            </div>
           </div>
-        </div>
 
-        {/* Birthdate */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-2">Birthdate</label>
-          <div className="grid grid-cols-3 gap-3">
-            {/* Month Dropdown */}
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Month</label>
-              <select
-                value={birthMonth}
-                onChange={(e) => handleBirthDateChange('month', e.target.value)}
-                className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Select Month</option>
-                {monthOptions.map(month => (
-                  <option key={month.value} value={month.value}>{month.label}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Day Dropdown */}
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Day</label>
-              <select
-                value={birthDay}
-                onChange={(e) => handleBirthDateChange('day', e.target.value)}
-                className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Select Day</option>
-                {dayOptions.map(day => (
-                  <option key={day.value} value={day.value}>{day.label}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Year Dropdown */}
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Year</label>
-              <select
-                value={birthYear}
-                onChange={(e) => handleBirthDateChange('year', e.target.value)}
-                className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Select Year</option>
-                {yearOptions.map(year => (
-                  <option key={year.value} value={year.value}>{year.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {formData.Birthdate && (
-            <div className="mt-2 text-sm text-green-400">
-              Selected: {new Date(formData.Birthdate).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
+          {/* Validation Notice */}
+          {showValidationNotice && (
+            <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-500/50 rounded-lg animate-pulse">
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 bg-yellow-400 rounded-full flex-shrink-0"></div>
+                <div>
+                  <p className="text-yellow-200 font-medium text-sm">Please complete all required fields</p>
+                  <p className="text-yellow-300/80 text-xs mt-1">Fields marked with * are required before submission</p>
+                </div>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Contact Number */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Contact Number</label>
-          <input
-            type="text"
-            name="ContactNumber"
-            value={formData.ContactNumber}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-        </div>
-
-        {/* Gender */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Gender</label>
-          <select
-            name="Gender"
-            value={formData.Gender}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          >
-            <option value="">Select</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-          </select>
-        </div>
-
-        {/* Business Information */}
-        <h2 className="text-xl font-bold mb-4">Business Information</h2>
-        
-        {/* Business Name */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Business Name</label>
-          <input
-            type="text"
-            name="BusinessName"
-            value={formData.BusinessName}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-        </div>
-
-        {/* Business Address */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Business Address</label>
-          <input
-            type="text"
-            name="BusinessAddress"
-            value={formData.BusinessAddress}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-        </div>
-
-        {/* Owner */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Owner</label>
-          <input
-            type="text"
-            name="Owner"
-            value={formData.Owner}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-        </div>
-
-        {/* Business Nature */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Business Nature</label>
-          <select
-            name="BusinessNature"
-            value={formData.BusinessNature}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          >
-            <option value="">Select Business Nature</option>
-            <option value="Retail">Retail</option>
-            <option value="Food Service">Food Service</option>
-            <option value="Manufacturing">Manufacturing</option>
-            <option value="Services">Services</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-
-        {/* Classification */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">Classification</label>
-          <select
-            name="Classification"
-            value={formData.Classification}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          >
-            <option value="">Select Classification</option>
-            <option value="Single Proprietorship">Single Proprietorship</option>
-            <option value="Partnership">Partnership</option>
-            <option value="Corporation">Corporation</option>
-            <option value="Cooperative">Cooperative</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-
-        {/* Issued On */}
-        <div className="mb-6">
-          <label className="block font-semibold mb-1">Issued On</label>
-          <input
-            type="date"
-            name="issuedOn"
-            value={formData.issuedOn}
-            onChange={handleChange}
-            className="w-full px-3 py-2 rounded bg-gray-800 text-gray-300"
-          />
-          <p className="text-xs text-gray-500 mt-1">Automatically set to today's date</p>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex justify-between">
-          <button onClick={handleBack} className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-500">
-            Back
-          </button>
-            <button onClick={handleOpenConfirm} className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500">
-              Fill-Out Done
+          {/* Buttons */}
+          <div className="flex gap-4 pt-6 border-t border-gray-600">
+            <button 
+              onClick={handleBack} 
+              className="flex-1 px-6 py-3 text-sm font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors border border-gray-600"
+            >
+              Back
             </button>
+            <button 
+              onClick={handleOpenConfirm} 
+              className="flex-1 px-6 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-lg"
+            >
+              Review & Submit
+            </button>
+          </div>
         </div>
       </div>
       {/* Confirm Modal */}
